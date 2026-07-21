@@ -94,6 +94,68 @@ export const metaSendTemplate = createServerFn({ method: "POST" })
     });
   });
 
+type SendMediaInput = {
+  accessToken: string;
+  phoneNumberId: string;
+  to: string;
+  mediaBase64: string;
+  mimeType: string;
+  fileName: string;
+};
+
+export const metaSendMedia = createServerFn({ method: "POST" })
+  .inputValidator((d: SendMediaInput) => {
+    if (!d.accessToken || !d.phoneNumberId) throw new Error("Credenciais Meta ausentes");
+    if (!d.to) throw new Error("Número destino obrigatório");
+    if (!d.mediaBase64) throw new Error("Arquivo vazio");
+    return d;
+  })
+  .handler(async ({ data }) => {
+    const to = data.to.replace(/\D/g, "");
+
+    // 1. Upload media to Meta
+    const buffer = Buffer.from(data.mediaBase64, "base64");
+    const blob = new Blob([buffer], { type: data.mimeType });
+    const formData = new FormData();
+    formData.append("file", blob, data.fileName);
+    formData.append("messaging_product", "whatsapp");
+
+    const uploadRes = await fetch(`${GRAPH}/${data.phoneNumberId}/media`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${data.accessToken}`,
+      },
+      body: formData as any,
+    });
+    
+    const uploadBody = await uploadRes.json();
+    if (!uploadRes.ok) {
+      throw new Error(`Meta Media Upload: ${uploadBody.error?.message || "Erro desconhecido"}`);
+    }
+
+    const mediaId = uploadBody.id;
+
+    // 2. Send media message
+    let type = "document";
+    if (data.mimeType.startsWith("image/")) type = "image";
+    if (data.mimeType.startsWith("video/")) type = "video";
+    if (data.mimeType.startsWith("audio/")) type = "audio";
+
+    const payload: any = {
+      messaging_product: "whatsapp",
+      to,
+      type: type,
+    };
+
+    payload[type] = { id: mediaId };
+    if (type === "document") payload[type].filename = data.fileName;
+
+    return metaFetch(data.accessToken, `/${data.phoneNumberId}/messages`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  });
+
 export const metaListTemplates = createServerFn({ method: "POST" })
   .inputValidator((d: ListTplInput) => {
     if (!d.accessToken || !d.wabaId) throw new Error("Credenciais Meta ausentes");

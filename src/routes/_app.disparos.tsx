@@ -22,7 +22,21 @@ export const Route = createFileRoute("/_app/disparos")({
 
 function DisparosRoute() {
   const account = useActiveAccount();
-  if (account?.provider === "meta") return <DisparosMeta account={account} />;
+  if (account?.provider === "meta") {
+    return (
+      <div className="flex h-full flex-col">
+        <PageHeader title="Disparos" subtitle="Envio em massa via Z-API/Evolution." />
+        <div className="flex-1 p-6">
+          <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-6 shadow-xl text-emerald-200">
+            <h2 className="text-lg font-semibold mb-2">Conta Meta Selecionada</h2>
+            <p className="text-emerald-200/80">
+              Esta tela é exclusiva para disparos via Z-API ou Evolution. Para fazer envios pela Meta, acesse a aba <b>Broadcasts</b> no menu lateral.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
   return <ApiGate>{(apiKey) => <DisparosPage apiKey={apiKey} />}</ApiGate>;
 }
 

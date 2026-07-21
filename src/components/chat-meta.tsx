@@ -2,9 +2,9 @@ import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Loader2, Send, Search, MessageCircle, Plus, RefreshCw } from "lucide-react";
+import { Loader2, Send, Search, MessageCircle, Plus, RefreshCw, Paperclip } from "lucide-react";
 
-import { metaSendText, metaSendTemplate, metaListTemplates } from "@/lib/meta.functions";
+import { metaSendText, metaSendTemplate, metaListTemplates, metaSendMedia } from "@/lib/meta.functions";
 import { fetchIncomingMessages } from "@/lib/incoming.functions";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -55,6 +55,7 @@ export function ChatMeta({ account }: { account: ZapAccount }) {
   const sendTplFn = useServerFn(metaSendTemplate);
   const listTplFn = useServerFn(metaListTemplates);
   const fetchInFn = useServerFn(fetchIncomingMessages);
+  const sendMediaFn = useServerFn(metaSendMedia);
 
   const [convs, setConvs] = useState<Conv[]>(() => loadConvs(phoneNumberId));
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -65,6 +66,7 @@ export function ChatMeta({ account }: { account: ZapAccount }) {
   const [newPhone, setNewPhone] = useState("");
   const [newName, setNewName] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { setConvs(loadConvs(phoneNumberId)); setSelectedId(null); }, [phoneNumberId]);
   useEffect(() => { saveConvs(phoneNumberId, convs); }, [phoneNumberId, convs]);
@@ -190,6 +192,55 @@ export function ChatMeta({ account }: { account: ZapAccount }) {
     },
     onError: (e: Error) => toast.error(e.message),
   });
+
+  const mediaMut = useMutation({
+    mutationFn: async (file: File) => {
+      if (!selected) throw new Error("Selecione uma conversa");
+      return new Promise<void>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = async () => {
+          try {
+            const base64 = (reader.result as string).split(",")[1];
+            await sendMediaFn({
+              data: {
+                accessToken,
+                phoneNumberId,
+                to: selected.id,
+                mediaBase64: base64,
+                mimeType: file.type,
+                fileName: file.name
+              }
+            });
+            const now = new Date().toISOString();
+            updateConv(selected.id, (c) => ({
+              ...c,
+              updatedAt: now,
+              messages: [...c.messages, { id: `${Date.now()}`, direction: "outgoing", message: `📎 Anexo: ${file.name}`, createdAt: now }],
+            }));
+            resolve();
+          } catch (e: any) {
+            reject(e);
+          }
+        };
+        reader.onerror = () => reject(new Error("Erro ao ler o arquivo"));
+        reader.readAsDataURL(file);
+      });
+    },
+    onSuccess: () => toast.success("Arquivo enviado"),
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 16 * 1024 * 1024) {
+        toast.error("O tamanho máximo de arquivo é 16MB.");
+        return;
+      }
+      mediaMut.mutate(file);
+    }
+    if (fileRef.current) fileRef.current.value = "";
+  };
 
   const tplMut = useMutation({
     mutationFn: async () => {
@@ -382,6 +433,10 @@ export function ChatMeta({ account }: { account: ZapAccount }) {
                 ) : (
                   <>
                     <div className="flex gap-2">
+                      <input type="file" ref={fileRef} className="hidden" onChange={handleFileChange} />
+                      <Button onClick={() => fileRef.current?.click()} disabled={mediaMut.isPending} className="border border-white/10 bg-[#0b1416] px-3 text-slate-400 hover:bg-white/5 hover:text-white" title="Anexar arquivo">
+                        {mediaMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}
+                      </Button>
                       <Textarea
                         rows={2}
                         value={reply}
