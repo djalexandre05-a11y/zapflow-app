@@ -1,0 +1,1 @@
+CREATE POLICY "no direct access" ON public.wa_incoming FOR ALL TO anon, authenticated USING (false) WITH CHECK (false);
