@@ -100,7 +100,7 @@ export function ChatMeta({ account }: { account: ZapAccount }) {
               map.set(phone, {
                 ...existing,
                 name: existing.name === existing.id ? (r.from_name || existing.name) : existing.name,
-                messages: [...existing.messages, msg],
+                messages: [...existing.messages, msg].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()),
                 updatedAt: r.received_at,
                 unread: isOpen ? 0 : (existing.unread || 0) + 1,
               });
@@ -119,8 +119,11 @@ export function ChatMeta({ account }: { account: ZapAccount }) {
         });
         const last = rows[rows.length - 1].received_at;
         localStorage.setItem(sinceKey, last);
-      } catch (e) {
-        // silencioso
+      } catch (e: any) {
+        console.error("fetchIncomingMessages error:", e);
+        if (e?.message?.includes("fetch")) {
+          toast.error("Erro ao carregar mensagens: " + e.message);
+        }
       }
     };
     tick();
@@ -271,7 +274,7 @@ export function ChatMeta({ account }: { account: ZapAccount }) {
             </div>
             <div className="flex items-center justify-between text-xs text-slate-400">
               <span>{filtered.length} conversas</span>
-              <button onClick={() => tplQ.refetch()} className="rounded p-1 hover:bg-white/5" title="Recarregar templates">
+              <button onClick={() => { localStorage.removeItem(`zapflow.meta.since.${phoneNumberId}`); window.location.reload(); }} className="rounded p-1 hover:bg-white/5" title="Recarregar mensagens e templates">
                 <RefreshCw className={`h-3.5 w-3.5 ${tplQ.isFetching ? "animate-spin" : ""}`} />
               </button>
             </div>
