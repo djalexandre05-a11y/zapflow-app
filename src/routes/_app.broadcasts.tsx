@@ -3,8 +3,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Loader2, Send, Megaphone, Users, MessageSquareText, Settings2 } from "lucide-react";
-import { metaListTemplates, metaBroadcast } from "@/lib/meta.functions";
+import { Loader2, Send, Megaphone, Users, MessageSquareText, Settings2, Paperclip, X } from "lucide-react";
+import { metaListTemplates, metaBroadcast, metaUploadMedia } from "@/lib/meta.functions";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -61,6 +61,7 @@ const normalize = (n: string) => n.replace(/\D/g, "");
 function BroadcastsMetaUI({ account }: { account: any }) {
   const listTplFn = useServerFn(metaListTemplates);
   const broadcastFn = useServerFn(metaBroadcast);
+  const uploadFn = useServerFn(metaUploadMedia);
 
   const [numbersText, setNumbersText] = useState("");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
@@ -68,6 +69,7 @@ function BroadcastsMetaUI({ account }: { account: any }) {
   const [templateName, setTemplateName] = useState("");
   const [templateLang, setTemplateLang] = useState("pt_BR");
   const [fallback, setFallback] = useState("");
+  const [file, setFile] = useState<File | null>(null);
   const [interval, setInterval] = useState(2);
 
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -92,7 +94,7 @@ function BroadcastsMetaUI({ account }: { account: any }) {
     const raw: any = tplQ.data;
     const list: any[] = raw?.data ?? [];
     return list.filter((t) => String(t.status || "").toUpperCase() === "APPROVED")
-      .map((t) => ({ name: t.name, language: t.language, status: t.status }));
+      .map((t) => ({ name: t.name, language: t.language, status: t.status, components: t.components }));
   }, [tplQ.data]);
 
   const finalNumbers = useMemo(() => {
@@ -107,25 +109,52 @@ function BroadcastsMetaUI({ account }: { account: any }) {
   }, [numbersText, includeFilteredTags, selectedTags, contacts]);
 
   const mut = useMutation({
-    mutationFn: () => broadcastFn({
-      data: {
-        accessToken: account.accessToken!,
-        phoneNumberId: account.phoneNumberId!,
-        numbers: finalNumbers,
-        templateName: templateName || undefined,
-        language: templateLang,
-        message: fallback || undefined,
-        intervalSeconds: interval,
-      },
-    }),
+    mutationFn: async () => {
+      const selectedTpl = templates.find((x) => x.name === templateName);
+      
+      let mediaId: string | undefined;
+      let mediaType: string | undefined;
+
+      if (file) {
+        const type = file.type;
+        if (type.startsWith("image/")) mediaType = "image";
+        else if (type.startsWith("audio/")) mediaType = "audio";
+        else if (type.startsWith("video/")) mediaType = "video";
+        else mediaType = "document";
+
+        const formData = new FormData();
+        formData.append("accessToken", account.accessToken!);
+        formData.append("phoneNumberId", account.phoneNumberId!);
+        formData.append("file", file);
+        
+        const uploadRes = await uploadFn({ data: formData });
+        mediaId = uploadRes.mediaId;
+      }
+
+      return broadcastFn({
+        data: {
+          accessToken: account.accessToken!,
+          phoneNumberId: account.phoneNumberId!,
+          numbers: finalNumbers,
+          templateName: templateName || undefined,
+          language: templateLang,
+          components: (selectedTpl as any)?.components,
+          message: fallback || undefined,
+          mediaId,
+          mediaType: mediaType as any,
+          intervalSeconds: interval,
+        },
+      });
+    },
     onSuccess: (r: any) => {
       toast.success(`Disparo concluído: ${r.sent} enviados, ${r.failed} falharam`);
       setNumbersText("");
+      setFile(null);
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const canSend = finalNumbers.length > 0 && (fallback.trim() || templateName);
+  const canSend = finalNumbers.length > 0 && (fallback.trim() || templateName || file);
 
   return (
     <div className="flex h-full flex-col bg-[#0b1416]">
@@ -212,7 +241,7 @@ function BroadcastsMetaUI({ account }: { account: any }) {
                     } />
                   </SelectTrigger>
                   <SelectContent className="border-white/10 bg-[#0f1b1e] text-slate-200">
-                    <SelectItem value="none">Apenas mensagem de texto livre</SelectItem>
+                    <SelectItem value="none">Apenas mensagem livre / arquivo</SelectItem>
                     {templates.map((t) => (
                       <SelectItem key={`${t.name}-${t.language}`} value={t.name}>{t.name} ({t.language})</SelectItem>
                     ))}
@@ -225,7 +254,7 @@ function BroadcastsMetaUI({ account }: { account: any }) {
 
               <div className="mt-6 space-y-2">
                 <Label className="flex items-center justify-between text-xs uppercase tracking-wider text-slate-400">
-                  <span>Mensagem Livre</span>
+                  <span>Mensagem Livre / Arquivo</span>
                   <span className="text-yellow-500/80 normal-case">(Válido apenas na janela de 24h)</span>
                 </Label>
                 <Textarea 
@@ -235,6 +264,32 @@ function BroadcastsMetaUI({ account }: { account: any }) {
                   placeholder="Escreva sua mensagem aqui caso não queira usar um template..." 
                   className="resize-none rounded-xl border-white/10 bg-black/20 text-slate-300 placeholder:text-slate-600 focus-visible:ring-blue-500/50" 
                 />
+                
+                <div className="mt-3 flex items-center gap-3">
+                  <input
+                    type="file"
+                    id="broadcastFile"
+                    className="hidden"
+                    onChange={(e) => setFile(e.target.files?.[0] || null)}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="border-white/10 bg-black/20 text-slate-300 hover:bg-white/10 hover:text-white"
+                    onClick={() => document.getElementById("broadcastFile")?.click()}
+                  >
+                    <Paperclip className="mr-2 h-4 w-4" />
+                    Anexar Arquivo
+                  </Button>
+                  {file && (
+                    <div className="flex items-center gap-2 rounded-lg bg-blue-500/20 px-3 py-1.5 text-sm text-blue-200">
+                      <span className="max-w-[200px] truncate">{file.name}</span>
+                      <button type="button" onClick={() => setFile(null)} className="hover:text-white hover:bg-blue-500/30 rounded p-1 transition-colors">
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 

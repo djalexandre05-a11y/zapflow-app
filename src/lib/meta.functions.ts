@@ -45,6 +45,7 @@ type BroadcastInput = {
   numbers: string[];
   templateName?: string;
   language?: string;
+  components?: any[];
   message?: string;
   intervalSeconds?: number;
 };
@@ -201,6 +202,31 @@ export const metaCreateTemplate = createServerFn({ method: "POST" })
     });
   });
 
+export const metaUploadMedia = createServerFn({ method: "POST" })
+  .handler(async ({ data }: { data: any }) => {
+    const isForm = data instanceof FormData;
+    const accessToken = isForm ? data.get("accessToken") as string : data.accessToken;
+    const phoneNumberId = isForm ? data.get("phoneNumberId") as string : data.phoneNumberId;
+    const file = (isForm ? data.get("file") : data.file) as File;
+
+    if (!accessToken || !phoneNumberId || !file) throw new Error("Dados incompletos para upload");
+
+    const formData = new FormData();
+    formData.append("file", file, file.name);
+    formData.append("messaging_product", "whatsapp");
+
+    const uploadRes = await fetch(`${GRAPH}/${phoneNumberId}/media`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${accessToken}` },
+      body: formData as any,
+    });
+    
+    const uploadBody = await uploadRes.json();
+    if (!uploadRes.ok) throw new Error(`Meta Media Upload: ${uploadBody.error?.message || "Erro desconhecido"}`);
+    
+    return { mediaId: uploadBody.id };
+  });
+
 export const metaDeleteTemplate = createServerFn({ method: "POST" })
   .inputValidator((d: DeleteTplInput) => {
     if (!d.accessToken || !d.wabaId || !d.name) throw new Error("Dados incompletos");
@@ -218,7 +244,7 @@ export const metaBroadcast = createServerFn({ method: "POST" })
   .inputValidator((d: BroadcastInput) => {
     if (!d.accessToken || !d.phoneNumberId) throw new Error("Credenciais Meta ausentes");
     if (!d.numbers?.length) throw new Error("Lista de destinatários vazia");
-    if (!d.templateName && !d.message) throw new Error("Informe um template ou mensagem");
+    if (!d.templateName && !d.message && !d.mediaId) throw new Error("Informe um template, mensagem ou mídia");
     return d;
   })
   .handler(async ({ data }) => {
@@ -235,10 +261,25 @@ export const metaBroadcast = createServerFn({ method: "POST" })
               messaging_product: "whatsapp",
               to,
               type: "template",
-              template: { name: data.templateName, language: { code: data.language || "pt_BR" } },
+              template: { 
+                name: data.templateName, 
+                language: { code: data.language || "pt_BR" },
+                ...(data.components?.length ? { components: data.components } : {})
+              },
             }),
           });
           await logOutgoing(data.phoneNumberId, to, `[Template] ${data.templateName}`, res);
+        } else if (data.mediaId && data.mediaType) {
+          const res = await metaFetch(data.accessToken, `/${data.phoneNumberId}/messages`, {
+            method: "POST",
+            body: JSON.stringify({
+              messaging_product: "whatsapp",
+              to,
+              type: data.mediaType,
+              [data.mediaType]: { id: data.mediaId, caption: data.message || "" },
+            }),
+          });
+          await logOutgoing(data.phoneNumberId, to, `[Mídia] ${data.message || ""}`, res);
         } else {
           const res = await metaFetch(data.accessToken, `/${data.phoneNumberId}/messages`, {
             method: "POST",
