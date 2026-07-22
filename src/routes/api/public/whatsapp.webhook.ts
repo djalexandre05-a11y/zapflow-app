@@ -29,8 +29,25 @@ export const Route = createFileRoute("/api/public/whatsapp/webhook")({
           for (const entry of entries) {
             for (const change of entry?.changes ?? []) {
               const value = change?.value;
-              if (!value?.messages?.length) continue;
               const phoneNumberId: string = value?.metadata?.phone_number_id;
+              
+              // Process statuses (errors)
+              if (value?.statuses?.length) {
+                for (const st of value.statuses) {
+                  if (st.status === "failed" && st.errors?.length) {
+                    const err = st.errors[0];
+                    rows.push({
+                      phone_number_id: phoneNumberId,
+                      from_number: st.recipient_id,
+                      from_name: "Sistema (Erro Meta)",
+                      message_text: `[ERRO DE ENTREGA] A Meta bloqueou o envio (Código ${err.code}): ${err.title || err.message}`,
+                      wa_message_id: st.id + "-err",
+                    });
+                  }
+                }
+              }
+
+              if (!value?.messages?.length) continue;
               const contacts: any[] = value?.contacts ?? [];
               const nameByWaId = new Map<string, string>();
               for (const c of contacts) {
