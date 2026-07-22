@@ -42,7 +42,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useRouter } from "@tanstack/react-router";
 import { toast } from "sonner";
 
 import {
