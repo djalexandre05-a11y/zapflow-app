@@ -398,7 +398,7 @@ export function FlowEditorProvider({
   // ---- Delete ----
   const deleteFlow = useCallback(async () => {
     const yes = window.confirm(
-      `Delete "${state.name}"? Any active runs end immediately. This can't be undone.`,
+      `Excluir "${state.name}"? Qualquer execução ativa será encerrada imediatamente. Isso não pode ser desfeito.`,
     );
     if (!yes) return;
     try {
