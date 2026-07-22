@@ -159,7 +159,7 @@ function DisparosPage({ apiKey }: { apiKey: string }) {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const canSend = !!profileId && !!accountId && (groupId || finalNumbers.length > 0) && (fallback.trim() || templateName);
+  const canSend = !!profileId && !!accountId && (groupId || finalNumbers.length > 0) && !!templateName;
   const destCount = groupId ? 1 : finalNumbers.length;
 
   return (
@@ -286,12 +286,7 @@ function DisparosPage({ apiKey }: { apiKey: string }) {
               )}
             </Field>
 
-            <div className="mt-4">
-              <Field label="Mensagem fallback (só para contatos com janela 24h aberta). Use {{name}}.">
-                <Textarea value={fallback} onChange={(e) => setFallback(e.target.value)} rows={4}
-                  placeholder="Olá {{name}}, novidade..." className="border-white/10 bg-[#0b1416]" />
-              </Field>
-            </div>
+
           </Card>
 
           <Card title="Envio">
