@@ -2,7 +2,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Loader2, Send, Search, MessageCircle, Plus, RefreshCw, Paperclip, Wand2 } from "lucide-react";
+import { Loader2, Send, Search, MessageCircle, Plus, RefreshCw, Paperclip, Wand2, Mic, Trash2 } from "lucide-react";
 
 import { metaSendText, metaSendTemplate, metaListTemplates, metaSendMedia } from "@/lib/meta.functions";
 import { fetchIncomingMessages } from "@/lib/incoming.functions";
@@ -71,6 +71,14 @@ export function ChatMeta({ account }: { account: ZapAccount }) {
   const [newPhone, setNewPhone] = useState("");
   const [newName, setNewName] = useState("");
   const [contacts, setContacts] = useState<{ id: string, name: string, phone: string }[]>([]);
+  
+  // Audio recording state
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const timerRef = useRef<number | null>(null);
+
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -273,6 +281,69 @@ export function ChatMeta({ account }: { account: ZapAccount }) {
     },
     onError: (e: Error) => toast.error(e.message),
   });
+
+  const streamRef = useRef<MediaStream | null>(null);
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = () => {
+        if (audioChunksRef.current.length > 0) {
+          const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+          const file = new File([audioBlob], 'audio.webm', { type: 'audio/webm' });
+          mediaMut.mutate(file);
+        }
+        stream.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+      setRecordingTime(0);
+      
+      timerRef.current = window.setInterval(() => {
+        setRecordingTime((prev) => prev + 1);
+      }, 1000);
+    } catch (err) {
+      toast.error("Erro ao acessar o microfone. Verifique as permissões.");
+      console.error(err);
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+      if (timerRef.current) window.clearInterval(timerRef.current);
+    }
+  };
+
+  const cancelRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      audioChunksRef.current = [];
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+      setRecordingTime(0);
+      if (timerRef.current) window.clearInterval(timerRef.current);
+    }
+  };
+
+  const formatTime = (seconds: number) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${s.toString().padStart(2, "0")}`;
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -560,38 +631,62 @@ export function ChatMeta({ account }: { account: ZapAccount }) {
                   </div>
                 ) : (
                   <>
-                    <div className="flex gap-2">
-                      <Button onClick={() => draftMut.mutate()} disabled={draftMut.isPending || !selected} className="border border-indigo-500/30 bg-indigo-500/10 px-3 text-indigo-400 hover:bg-indigo-500/20 hover:text-indigo-300" title="Rascunho Mágico com IA">
-                        {draftMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
-                      </Button>
-                      <input
-                        type="file"
-                        ref={fileRef}
-                        className="hidden"
-                        onChange={handleFileChange}
-                        accept=".jpg,.jpeg,.png,.gif,.webp,.mp4,.mp3,.pdf,.doc,.docx,.xls,.xlsx,.txt"
-                      />
-                      <Button onClick={() => fileRef.current?.click()} disabled={mediaMut.isPending} className="border border-white/10 bg-[#0b1416] px-3 text-slate-400 hover:bg-white/5 hover:text-white" title="Anexar arquivo">
-                        {mediaMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}
-                      </Button>
-                      <Textarea
-                        rows={2}
-                        value={reply}
-                        onChange={(e) => setReply(e.target.value)}
-                        placeholder="Escreva uma resposta…"
-                        className="min-h-[52px] border-white/10 bg-[#0b1416]"
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && reply.trim()) {
-                            e.preventDefault();
-                            sendMut.mutate();
-                          }
-                        }}
-                      />
-                      <Button onClick={() => sendMut.mutate()} disabled={sendMut.isPending || !reply.trim()} className="bg-emerald-500 px-4 text-[#0b1416] hover:bg-emerald-400">
-                        {sendMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                      </Button>
-                    </div>
-                    <div className="mt-1 text-[10px] text-slate-500">Ctrl/⌘ + Enter para enviar</div>
+                    {isRecording ? (
+                      <div className="flex w-full items-center gap-2">
+                        <Button onClick={cancelRecording} variant="ghost" className="h-[52px] border border-white/10 px-4 text-rose-500 hover:bg-rose-500/10 hover:text-rose-400">
+                          <Trash2 className="h-5 w-5" />
+                        </Button>
+                        <div className="flex h-[52px] flex-1 items-center justify-center gap-2 rounded-md border border-white/10 bg-[#0b1416] text-emerald-500">
+                          <span className="relative flex h-3 w-3">
+                            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
+                            <span className="relative inline-flex h-3 w-3 rounded-full bg-emerald-500"></span>
+                          </span>
+                          <span className="font-mono text-sm">{formatTime(recordingTime)}</span>
+                        </div>
+                        <Button onClick={stopRecording} className="h-[52px] bg-emerald-500 px-5 text-[#0b1416] hover:bg-emerald-400">
+                          <Send className="h-5 w-5" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="flex gap-2">
+                        <Button onClick={() => draftMut.mutate()} disabled={draftMut.isPending || !selected} className="border border-indigo-500/30 bg-indigo-500/10 px-3 text-indigo-400 hover:bg-indigo-500/20 hover:text-indigo-300" title="Rascunho Mágico com IA">
+                          {draftMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
+                        </Button>
+                        <input
+                          type="file"
+                          ref={fileRef}
+                          className="hidden"
+                          onChange={handleFileChange}
+                          accept=".jpg,.jpeg,.png,.gif,.webp,.mp4,.mp3,.pdf,.doc,.docx,.xls,.xlsx,.txt"
+                        />
+                        <Button onClick={() => fileRef.current?.click()} disabled={mediaMut.isPending} className="border border-white/10 bg-[#0b1416] px-3 text-slate-400 hover:bg-white/5 hover:text-white" title="Anexar arquivo">
+                          {mediaMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}
+                        </Button>
+                        <Textarea
+                          rows={2}
+                          value={reply}
+                          onChange={(e) => setReply(e.target.value)}
+                          placeholder="Escreva uma resposta…"
+                          className="min-h-[52px] border-white/10 bg-[#0b1416]"
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && reply.trim()) {
+                              e.preventDefault();
+                              sendMut.mutate();
+                            }
+                          }}
+                        />
+                        {reply.trim() ? (
+                          <Button onClick={() => sendMut.mutate()} disabled={sendMut.isPending} className="bg-emerald-500 px-4 text-[#0b1416] hover:bg-emerald-400">
+                            {sendMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                          </Button>
+                        ) : (
+                          <Button onClick={startRecording} className="bg-emerald-500 px-4 text-[#0b1416] hover:bg-emerald-400">
+                            <Mic className="h-5 w-5" />
+                          </Button>
+                        )}
+                      </div>
+                    )}
+                    {!isRecording && <div className="mt-1 text-[10px] text-slate-500">Ctrl/⌘ + Enter para enviar</div>}
                   </>
                 )}
               </div>
