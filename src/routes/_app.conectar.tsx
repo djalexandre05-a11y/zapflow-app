@@ -29,10 +29,14 @@ function NumbersPage() {
   const [editing, setEditing] = useState<Num | null>(null);
 
   const remove = async (id: string) => {
-    const { error } = await supabase.from("user_accounts").delete().eq("id", id);
-    if (!error) {
+    try {
+      const stored = localStorage.getItem("zapflow.accounts");
+      let list = stored ? JSON.parse(stored) : [];
+      list = list.filter((a: any) => a.id !== id);
+      localStorage.setItem("zapflow.accounts", JSON.stringify(list));
+      window.dispatchEvent(new Event("storage"));
       toast.success("Número removido");
-    } else {
+    } catch (e) {
       toast.error("Erro ao remover número");
     }
   };
@@ -161,36 +165,38 @@ function ConnectModal({ initial, onClose, onDone }: { initial: Num | null; onClo
     mutationFn: async () => connect({ data: { apiKey: "", profileId: "", accessToken, wabaId, phoneNumberId } }),
     onSuccess: async (res: any) => {
       const acc = res?.account || {};
-      const accountId = initial?.id || acc.id; // Must be a UUID if provided, else let DB generate it
+      const id = initial?.id || acc.id || phoneNumberId;
       
-      // Update the previous active account to false, and this new one to true
-      await supabase.from("user_accounts").update({ active: false }).eq("user_id", user?.id);
-
-      const payload: any = {
-        user_id: user?.id,
+      const newAccount = {
+        id,
         name: acc.name || `WhatsApp ${phoneNumberId}`,
         provider: "meta",
         token: accessToken,
-        waba_id: wabaId,
-        phone_number_id: phoneNumberId,
+        apiKey: accessToken,
+        accessToken,
+        wabaId,
+        phoneNumberId,
         active: true,
       };
 
-      if (accountId) {
-        payload.id = accountId;
+      try {
+        const stored = localStorage.getItem("zapflow.accounts");
+        let list = stored ? JSON.parse(stored) : [];
+        list = list.map((a: any) => ({ ...a, active: false })); // deactivate others
+        
+        // Remove if exists
+        list = list.filter((a: any) => a.id !== id);
+        list.push(newAccount);
+        
+        localStorage.setItem("zapflow.accounts", JSON.stringify(list));
+        window.dispatchEvent(new Event("storage"));
+        toast.success(`Conectado: ${acc.name || phoneNumberId} — abrindo chat`);
+        onDone();
+        navigate({ to: "/chat" });
+      } catch (err: any) {
+        console.error("Erro no LocalStorage:", err);
+        toast.error("Erro ao salvar conta no dispositivo.");
       }
-
-      const { error, data: errorData } = await supabase.from("user_accounts").upsert(payload).select();
-
-      if (error) {
-        console.error("Erro no Supabase:", error);
-        toast.error("Erro ao salvar conta no banco.");
-        return;
-      }
-
-      toast.success(`Conectado: ${acc.name || phoneNumberId} — abrindo chat`);
-      onDone();
-      navigate({ to: "/chat" });
     },
     onError: (e: any) => toast.error(e?.message || "Falha ao conectar"),
   });

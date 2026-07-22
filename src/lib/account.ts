@@ -16,55 +16,29 @@ export type ZapAccount = {
 
 // Hook to load all accounts for the current user from Supabase
 export function useAccounts() {
-  const { user } = useAuth();
   const [accounts, setAccounts] = useState<ZapAccount[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!user) {
-      setAccounts([]);
-      setLoading(false);
-      return;
-    }
-
-    const fetchAccounts = async () => {
-      const { data, error } = await supabase
-        .from("user_accounts")
-        .select("*")
-        .order("created_at", { ascending: false });
-      
-      if (!error && data) {
-        // Mapear do formato do banco para o ZapAccount do front
-        const mapped = data.map((d: any) => ({
-          id: d.id,
-          name: d.name,
-          provider: d.provider,
-          apiKey: d.token || "",
-          accessToken: d.token || "",
-          wabaId: d.waba_id,
-          phoneNumberId: d.phone_number_id,
-          active: d.active,
-        }));
-        setAccounts(mapped);
+    const fetchAccounts = () => {
+      try {
+        const stored = localStorage.getItem("zapflow.accounts");
+        if (stored) {
+          setAccounts(JSON.parse(stored));
+        } else {
+          setAccounts([]);
+        }
+      } catch (err) {
+        console.error("Failed to parse accounts", err);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
 
     fetchAccounts();
-
-    // Escutar mudanças no banco para tempo real (opcional)
-    const channelId = `user_accounts_changes_${Math.random()}`;
-    const sub = supabase
-      .channel(channelId)
-      .on("postgres_changes", { event: "*", schema: "public", table: "user_accounts", filter: `user_id=eq.${user.id}` }, () => {
-        fetchAccounts();
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(sub);
-    };
-  }, [user]);
+    window.addEventListener("storage", fetchAccounts);
+    return () => window.removeEventListener("storage", fetchAccounts);
+  }, []);
 
   return { accounts, loading };
 }
