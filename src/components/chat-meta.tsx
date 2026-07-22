@@ -362,7 +362,17 @@ export function ChatMeta({ account }: { account: ZapAccount }) {
                       <span className="ml-auto shrink-0 text-[10px] text-slate-500">{relTime(c.updatedAt)}</span>
                     </div>
                     <div className="mt-0.5 flex items-center gap-2">
-                      <div className="truncate text-xs text-slate-400">{last?.message || "—"}</div>
+                      <div className="truncate text-xs text-slate-400">
+                        {(() => {
+                          const msg = last?.message;
+                          if (!msg) return "—";
+                          if (msg.startsWith("[image]|")) return "📷 Imagem";
+                          if (msg.startsWith("[video]|")) return "🎥 Vídeo";
+                          if (msg.startsWith("[audio]|")) return "🎵 Áudio";
+                          if (msg.startsWith("[document]|")) return "📄 Documento";
+                          return msg;
+                        })()}
+                      </div>
                       {c.unread ? (
                         <Badge className="ml-auto shrink-0 bg-emerald-500 px-1.5 py-0 text-[10px] text-[#0b1416] hover:bg-emerald-500">{c.unread}</Badge>
                       ) : null}
