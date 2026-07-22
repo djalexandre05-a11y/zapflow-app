@@ -463,7 +463,7 @@ export function ChatMeta({ account }: { account: ZapAccount }) {
                     </div>
                     <div className="mt-0.5 flex items-center gap-2">
                       <div className="truncate text-xs text-slate-400">
-                        {(() => {
+                        <span>{(() => {
                           const msg = last?.message;
                           if (!msg) return "—";
                           if (msg.startsWith("[image]|")) return "📷 Imagem";
@@ -471,7 +471,7 @@ export function ChatMeta({ account }: { account: ZapAccount }) {
                           if (msg.startsWith("[audio]|")) return "🎵 Áudio";
                           if (msg.startsWith("[document]|")) return "📄 Documento";
                           return msg;
-                        })()}
+                        })()}</span>
                       </div>
                       {c.unread ? (
                         <Badge className="ml-auto shrink-0 bg-emerald-500 px-1.5 py-0 text-[10px] text-[#0b1416] hover:bg-emerald-500">{c.unread}</Badge>
@@ -526,7 +526,7 @@ export function ChatMeta({ account }: { account: ZapAccount }) {
                           {/^(?:\[image\]|\[video\]|\[audio\]|\[document\])\|/.test(m.message) ? (
                             <MediaMessage text={m.message} accessToken={accessToken} />
                           ) : (
-                            m.message
+                            <span>{m.message}</span>
                           )}
                         </div>
                         <div className={`mt-1 text-right text-[10px] ${mine ? "text-emerald-50/70" : "text-slate-500"}`}>
