@@ -90,11 +90,13 @@ export const sendWhatsAppBroadcast = createServerFn({ method: "POST" })
       name: data.name,
     };
     if (data.templateName) {
-      body.message = {
-        template: { name: data.templateName, language: data.templateLanguage || "pt_BR" },
-      };
+      body.template = { name: data.templateName, language: data.templateLanguage || "pt_BR" };
+      // Fallback message just in case the API also allows it alongside the template
+      if (data.message?.trim()) {
+        body.message = data.message;
+      }
     } else {
-      body.message = { text: data.message };
+      body.message = data.message;
     }
     if (data.to?.length) body.to = data.to;
     if (data.intervalSeconds) body.intervalSeconds = data.intervalSeconds;
