@@ -11,6 +11,7 @@ import {
   listConversations,
   listConversationMessages,
   sendConversationMessage,
+  sendConversationTemplate,
   markConversationRead,
   listWhatsAppTemplates,
   uploadMediaDirect,
@@ -214,6 +215,77 @@ function ChatPage({ apiKey }: { apiKey: string }) {
     onSuccess: () => convsQ.refetch(),
     onError: (e: Error) => toast.error(e.message),
   });
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) audioChunksRef.current.push(event.data);
+      };
+
+      mediaRecorder.onstop = () => {
+        if (audioChunksRef.current.length > 0) {
+          const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/mp4' });
+          const file = new File([audioBlob], 'audio.mp4', { type: 'audio/mp4' });
+          mediaMut.mutate(file);
+        }
+        stream.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+      setRecordingTime(0);
+      
+      timerRef.current = window.setInterval(() => {
+        setRecordingTime((prev) => prev + 1);
+      }, 1000);
+    } catch (err) {
+      toast.error("Erro ao acessar o microfone. Verifique as permissões.");
+      console.error(err);
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+      if (timerRef.current) window.clearInterval(timerRef.current);
+    }
+  };
+
+  const cancelRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      audioChunksRef.current = [];
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+      setRecordingTime(0);
+      if (timerRef.current) window.clearInterval(timerRef.current);
+    }
+  };
+
+  const formatTime = (seconds: number) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${s.toString().padStart(2, "0")}`;
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 16 * 1024 * 1024) {
+        toast.error("O tamanho máximo de arquivo é 16MB.");
+        return;
+      }
+      mediaMut.mutate(file);
+    }
+    if (fileRef.current) fileRef.current.value = "";
+  };
 
   // ===== template send (fora janela 24h) =====
   const activeConv = conversations.find((c) => c.id === selected?.id);
