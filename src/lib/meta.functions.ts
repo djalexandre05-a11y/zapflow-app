@@ -94,36 +94,28 @@ export const metaSendTemplate = createServerFn({ method: "POST" })
     });
   });
 
-type SendMediaInput = {
-  accessToken: string;
-  phoneNumberId: string;
-  to: string;
-  mediaBase64: string;
-  mimeType: string;
-  fileName: string;
-};
-
 export const metaSendMedia = createServerFn({ method: "POST" })
-  .inputValidator((d: SendMediaInput) => {
-    if (!d.accessToken || !d.phoneNumberId) throw new Error("Credenciais Meta ausentes");
-    if (!d.to) throw new Error("Número destino obrigatório");
-    if (!d.mediaBase64) throw new Error("Arquivo vazio");
-    return d;
-  })
-  .handler(async ({ data }) => {
-    const to = data.to.replace(/\D/g, "");
+  .handler(async ({ data }: { data: any }) => {
+    // TanStack Start unwraps FormData automatically in some versions, but let's check
+    const isForm = data instanceof FormData;
+    const accessToken = isForm ? data.get("accessToken") as string : data.accessToken;
+    const phoneNumberId = isForm ? data.get("phoneNumberId") as string : data.phoneNumberId;
+    const to = isForm ? data.get("to") as string : data.to;
+    const file = (isForm ? data.get("file") : data.file) as File;
+
+    if (!accessToken || !phoneNumberId || !to || !file) throw new Error("Dados incompletos ou arquivo ausente");
+
+    const dest = to.replace(/\D/g, "");
 
     // 1. Upload media to Meta
-    const buffer = Buffer.from(data.mediaBase64, "base64");
-    const blob = new Blob([buffer], { type: data.mimeType });
     const formData = new FormData();
-    formData.append("file", blob, data.fileName);
+    formData.append("file", file, file.name);
     formData.append("messaging_product", "whatsapp");
 
-    const uploadRes = await fetch(`${GRAPH}/${data.phoneNumberId}/media`, {
+    const uploadRes = await fetch(`${GRAPH}/${phoneNumberId}/media`, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${data.accessToken}`,
+        Authorization: `Bearer ${accessToken}`,
       },
       body: formData as any,
     });
@@ -137,20 +129,20 @@ export const metaSendMedia = createServerFn({ method: "POST" })
 
     // 2. Send media message
     let type = "document";
-    if (data.mimeType.startsWith("image/")) type = "image";
-    if (data.mimeType.startsWith("video/")) type = "video";
-    if (data.mimeType.startsWith("audio/")) type = "audio";
+    if (file.type.startsWith("image/")) type = "image";
+    if (file.type.startsWith("video/")) type = "video";
+    if (file.type.startsWith("audio/")) type = "audio";
 
     const payload: any = {
       messaging_product: "whatsapp",
-      to,
+      to: dest,
       type: type,
     };
 
     payload[type] = { id: mediaId };
-    if (type === "document") payload[type].filename = data.fileName;
+    if (type === "document") payload[type].filename = file.name;
 
-    return metaFetch(data.accessToken, `/${data.phoneNumberId}/messages`, {
+    return metaFetch(accessToken, `/${phoneNumberId}/messages`, {
       method: "POST",
       body: JSON.stringify(payload),
     });

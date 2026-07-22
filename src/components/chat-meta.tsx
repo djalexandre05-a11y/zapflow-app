@@ -65,8 +65,13 @@ export function ChatMeta({ account }: { account: ZapAccount }) {
   const [newOpen, setNewOpen] = useState(false);
   const [newPhone, setNewPhone] = useState("");
   const [newName, setNewName] = useState("");
+  const [contacts, setContacts] = useState<{id: string, name: string, phone: string}[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    try { setContacts(JSON.parse(localStorage.getItem("zapflow.contacts") || "[]")); } catch {}
+  }, []);
 
   useEffect(() => { setConvs(loadConvs(phoneNumberId)); setSelectedId(null); }, [phoneNumberId]);
   useEffect(() => { saveConvs(phoneNumberId, convs); }, [phoneNumberId, convs]);
@@ -196,35 +201,21 @@ export function ChatMeta({ account }: { account: ZapAccount }) {
   const mediaMut = useMutation({
     mutationFn: async (file: File) => {
       if (!selected) throw new Error("Selecione uma conversa");
-      return new Promise<void>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = async () => {
-          try {
-            const base64 = (reader.result as string).split(",")[1];
-            await sendMediaFn({
-              data: {
-                accessToken,
-                phoneNumberId,
-                to: selected.id,
-                mediaBase64: base64,
-                mimeType: file.type,
-                fileName: file.name
-              }
-            });
-            const now = new Date().toISOString();
-            updateConv(selected.id, (c) => ({
-              ...c,
-              updatedAt: now,
-              messages: [...c.messages, { id: `${Date.now()}`, direction: "outgoing", message: `📎 Anexo: ${file.name}`, createdAt: now }],
-            }));
-            resolve();
-          } catch (e: any) {
-            reject(e);
-          }
-        };
-        reader.onerror = () => reject(new Error("Erro ao ler o arquivo"));
-        reader.readAsDataURL(file);
-      });
+      
+      const formData = new FormData();
+      formData.append("accessToken", accessToken);
+      formData.append("phoneNumberId", phoneNumberId);
+      formData.append("to", selected.id);
+      formData.append("file", file);
+
+      await sendMediaFn({ data: formData as any });
+      
+      const now = new Date().toISOString();
+      updateConv(selected.id, (c) => ({
+        ...c,
+        updatedAt: now,
+        messages: [...c.messages, { id: `${Date.now()}`, direction: "outgoing", message: `📎 Anexo: ${file.name}`, createdAt: now }],
+      }));
     },
     onSuccess: () => toast.success("Arquivo enviado"),
     onError: (e: Error) => toast.error(e.message),
@@ -303,6 +294,26 @@ export function ChatMeta({ account }: { account: ZapAccount }) {
                   <label className="mb-1 block text-xs text-slate-400">Nome (opcional)</label>
                   <Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="João" />
                 </div>
+                {contacts.length > 0 && (
+                  <div>
+                    <Select onValueChange={(val) => {
+                      const c = contacts.find(x => x.id === val);
+                      if (c) {
+                        setNewPhone(c.phone);
+                        setNewName(c.name);
+                      }
+                    }}>
+                      <SelectTrigger className="h-11 border-white/10 bg-[#0b1416]">
+                        <SelectValue placeholder="+ Escolher contato salvo..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {contacts.map(c => (
+                          <SelectItem key={c.id} value={c.id}>{c.name} ({c.phone})</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
                 <p className="text-xs text-slate-500">
                   Fora da janela de 24h você só pode enviar um <b>template aprovado</b>. Após a resposta do contato, o campo de texto libera.
                 </p>
