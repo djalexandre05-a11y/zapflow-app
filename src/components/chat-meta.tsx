@@ -233,13 +233,15 @@ export function ChatMeta({ account }: { account: ZapAccount }) {
       formData.append("to", selected.id);
       formData.append("file", file);
 
-      await sendMediaFn({ data: formData as any });
+      const res: any = await sendMediaFn({ data: formData as any });
 
       const now = new Date().toISOString();
+      const typeStr = res._type ? `[${res._type}]` : "[document]";
+      
       updateConv(selected.id, (c) => ({
         ...c,
         updatedAt: now,
-        messages: [...c.messages, { id: `${Date.now()}`, direction: "outgoing", message: `📎 Anexo: ${file.name}`, createdAt: now }],
+        messages: [...c.messages, { id: `${Date.now()}`, direction: "outgoing", message: `${typeStr}|${res._mediaId}|${file.name}`, createdAt: now }],
       }));
     },
     onSuccess: () => toast.success("Arquivo enviado"),
@@ -521,7 +523,7 @@ export function ChatMeta({ account }: { account: ZapAccount }) {
                     <div key={m.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
                       <div className={`max-w-[70%] rounded-2xl px-3 py-2 text-sm ${mine ? "bg-emerald-600/90 text-white" : "bg-[#1a2b2e] text-slate-100"}`}>
                         <div className="whitespace-pre-wrap break-words">
-                          {!mine && /^(?:\[image\]|\[video\]|\[audio\]|\[document\])\|/.test(m.message) ? (
+                          {/^(?:\[image\]|\[video\]|\[audio\]|\[document\])\|/.test(m.message) ? (
                             <MediaMessage text={m.message} accessToken={accessToken} />
                           ) : (
                             m.message

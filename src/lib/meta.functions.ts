@@ -142,10 +142,11 @@ export const metaSendMedia = createServerFn({ method: "POST" })
     payload[type] = { id: mediaId };
     if (type === "document") payload[type].filename = file.name;
 
-    return metaFetch(accessToken, `/${phoneNumberId}/messages`, {
+    const sendRes = await metaFetch(accessToken, `/${phoneNumberId}/messages`, {
       method: "POST",
       body: JSON.stringify(payload),
     });
+    return { ...sendRes, _mediaId: mediaId, _type: type };
   });
 
 export const metaListTemplates = createServerFn({ method: "POST" })
