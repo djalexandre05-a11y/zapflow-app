@@ -60,7 +60,7 @@ export function validateFlowForActivation(
       severity: "error",
       scope: "flow",
       field: "name",
-      message: "Flow name is required.",
+      message: "O nome do fluxo é obrigatório.",
     });
   }
 
@@ -73,7 +73,7 @@ export function validateFlowForActivation(
       severity: "error",
       scope: "flow",
       field: "entry_node_id",
-      message: "Pick an entry node before activating.",
+      message: "Escolha um nó de entrada antes de ativar.",
     });
   }
 
@@ -82,7 +82,7 @@ export function validateFlowForActivation(
     issues.push({
       severity: "error",
       scope: "flow",
-      message: "A flow needs at least one node before activation.",
+      message: "O fluxo precisa de pelo menos um nó antes de ser ativado.",
     });
   }
 
@@ -91,7 +91,7 @@ export function validateFlowForActivation(
       severity: "error",
       scope: "flow",
       field: "entry_node_id",
-      message: `Entry node "${flow.entry_node_id}" doesn't exist.`,
+      message: `Nó de entrada "${flow.entry_node_id}" não existe.`,
     });
   }
 
@@ -104,7 +104,7 @@ export function validateFlowForActivation(
         severity: "error",
         scope: "node",
         node_key: n.node_key,
-        message: `Duplicate node_key "${n.node_key}".`,
+        message: `Identificador de nó duplicado "${n.node_key}".`,
       });
     }
     seen.add(n.node_key);
@@ -126,7 +126,7 @@ export function validateFlowForActivation(
           severity: "warning",
           scope: "node",
           node_key: n.node_key,
-          message: `Node "${n.node_key}" is unreachable from the entry node.`,
+          message: `O nó "${n.node_key}" é inalcançável a partir do nó de entrada.`,
         });
       }
     }
@@ -154,7 +154,7 @@ function validateTrigger(
         severity: "error",
         scope: "trigger",
         field: "trigger_config.keywords",
-        message: "Keyword triggers need at least one keyword.",
+        message: "Gatilhos de palavra-chave precisam de pelo menos uma palavra.",
       });
     } else {
       // Empty / whitespace-only keywords are silent no-ops at match
