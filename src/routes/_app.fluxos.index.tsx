@@ -5,7 +5,7 @@ import { Plus, Trash2, Edit2, Network } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/components/auth-provider";
 
-export const Route = createFileRoute("/_app/fluxos")({
+export const Route = createFileRoute("/_app/fluxos/")({
   component: FluxosPage,
 });
 
