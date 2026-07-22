@@ -34,7 +34,7 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
-import { useTranslations } from "next-intl";
+import { useTranslations } from "@/lib/next-intl";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

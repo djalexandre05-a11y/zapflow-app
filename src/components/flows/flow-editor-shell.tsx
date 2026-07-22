@@ -35,7 +35,7 @@ import { ValidationPanel } from "./validation-panel";
 import { NODE_META, nodeColors, type NodeType } from "./shared";
 import { cn } from "@/lib/utils";
 import type { FlowRow, FlowNodeRow } from "@/lib/flows/types";
-import { useTranslations } from "next-intl";
+import { useTranslations } from "@/lib/next-intl";
 
 /**
  * Below this viewport width we force list view and hide the toggle.

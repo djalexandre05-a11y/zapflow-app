@@ -18,7 +18,7 @@
  */
 
 import { CircleAlert, CircleCheck } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useTranslations } from "@/lib/next-intl";
 import { cn } from "@/lib/utils";
 import type { ValidationIssue } from "@/lib/flows/validate";
 import { useFlowEditor } from "./flow-editor-state";

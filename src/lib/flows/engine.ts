@@ -1,4 +1,4 @@
-﻿import { supabase } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
 import { metaFetch } from '@/lib/meta.functions';
 
 export async function advanceFlowRun(runId: string, incomingMessageText: string, metaToken: string, phoneNumberId: string) {
@@ -43,7 +43,7 @@ export async function advanceFlowRun(runId: string, incomingMessageText: string,
 
   // Executa
   if (nextNode.node_type === 'send_message') {
-    await metaFetch(metaToken, \/$phoneNumberId/messages\, {
+    await metaFetch(metaToken, `/${phoneNumberId}/messages`, {
       method: 'POST',
       body: JSON.stringify({
         messaging_product: 'whatsapp',

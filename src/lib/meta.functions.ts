@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 
 const GRAPH = "https://graph.facebook.com/v21.0";
 
-async function metaFetch(token: string, path: string, init: RequestInit = {}) {
+export async function metaFetch(token: string, path: string, init: RequestInit = {}) {
   const res = await fetch(`${GRAPH}${path}`, {
     ...init,
     headers: {

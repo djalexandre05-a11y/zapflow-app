@@ -28,7 +28,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { useTranslations } from "next-intl";
+import { useTranslations } from "@/lib/next-intl";
 import { NODE_META, type BuilderNode } from "../shared";
 
 export function TextRow({
