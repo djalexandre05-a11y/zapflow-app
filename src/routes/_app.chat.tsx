@@ -3,7 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { RefreshCw, Loader2, Send, CheckCheck, Search, MessageCircle } from "lucide-react";
+import { RefreshCw, Loader2, Send, CheckCheck, Search, MessageCircle, Paperclip, Wand2, Mic } from "lucide-react";
 
 import {
   listAccounts,
@@ -15,6 +15,7 @@ import {
   markConversationRead,
   listWhatsAppTemplates,
 } from "@/lib/zernio.functions";
+import { generateDraft } from "@/lib/ai.functions";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -69,6 +70,7 @@ function ChatPage({ apiKey }: { apiKey: string }) {
   const sendTplFn = useServerFn(sendConversationTemplate);
   const readFn = useServerFn(markConversationRead);
   const templatesFn = useServerFn(listWhatsAppTemplates);
+  const aiDraftFn = useServerFn(generateDraft);
 
 
   const profilesQ = useQuery({ queryKey: ["z", "profiles", apiKey], queryFn: () => profilesFn({ data: { apiKey } }) });
@@ -124,6 +126,30 @@ function ChatPage({ apiKey }: { apiKey: string }) {
       setReply("");
       msgsQ.refetch();
       convsQ.refetch();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const draftMut = useMutation({
+    mutationFn: async () => {
+      if (!selected) throw new Error("Selecione uma conversa");
+      let aiSettings;
+      try { aiSettings = JSON.parse(localStorage.getItem("zapflow.ai_settings") || "{}"); } catch {}
+      
+      if (!aiSettings?.openaiKey) {
+        throw new Error("Chave da OpenAI não configurada. Acesse Configurações.");
+      }
+
+      const history = messages.slice(-10).map(m => ({
+        role: m.direction || "incoming",
+        content: m.message || ""
+      }));
+
+      return aiDraftFn({ data: { apiKey: aiSettings.openaiKey, systemPrompt: aiSettings.prompt || "", history } });
+    },
+    onSuccess: (res: any) => {
+      setReply(res?.text || "");
+      toast.success("Rascunho gerado!");
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -409,6 +435,12 @@ function ChatPage({ apiKey }: { apiKey: string }) {
                 ) : (
                   <>
                     <div className="flex gap-2">
+                      <Button onClick={() => draftMut.mutate()} disabled={draftMut.isPending || !selected} className="border border-indigo-500/30 bg-indigo-500/10 px-3 text-indigo-400 hover:bg-indigo-500/20 hover:text-indigo-300" title="Rascunho Mágico com IA">
+                        {draftMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
+                      </Button>
+                      <Button onClick={() => toast.info("Em breve: Envio de anexos via Zernio")} className="border border-white/10 bg-[#0b1416] px-3 text-slate-400 hover:bg-white/5 hover:text-white" title="Anexar arquivo">
+                        <Paperclip className="h-4 w-4" />
+                      </Button>
                       <Textarea
                         rows={2}
                         value={reply}
@@ -422,13 +454,19 @@ function ChatPage({ apiKey }: { apiKey: string }) {
                           }
                         }}
                       />
-                      <Button
-                        onClick={() => sendMut.mutate()}
-                        disabled={sendMut.isPending || !reply.trim()}
-                        className="bg-emerald-500 px-4 text-[#0b1416] hover:bg-emerald-400"
-                      >
-                        {sendMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                      </Button>
+                      {reply.trim() ? (
+                        <Button
+                          onClick={() => sendMut.mutate()}
+                          disabled={sendMut.isPending}
+                          className="bg-emerald-500 px-4 text-[#0b1416] hover:bg-emerald-400"
+                        >
+                          {sendMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                        </Button>
+                      ) : (
+                        <Button onClick={() => toast.info("Em breve: Áudio via Zernio")} className="bg-emerald-500 px-4 text-[#0b1416] hover:bg-emerald-400">
+                          <Mic className="h-5 w-5" />
+                        </Button>
+                      )}
                     </div>
                     <div className="mt-1 text-[10px] text-slate-500">Ctrl/⌘ + Enter para enviar</div>
                   </>
