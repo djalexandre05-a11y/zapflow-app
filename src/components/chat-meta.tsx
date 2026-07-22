@@ -300,8 +300,10 @@ export function ChatMeta({ account }: { account: ZapAccount }) {
 
       mediaRecorder.onstop = () => {
         if (audioChunksRef.current.length > 0) {
-          const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-          const file = new File([audioBlob], 'audio.webm', { type: 'audio/webm' });
+          // Meta API only accepts specific mime types. WebM is not supported, 
+          // so we fake it as mp4 which Meta's transcoder handles fine.
+          const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/mp4' });
+          const file = new File([audioBlob], 'audio.mp4', { type: 'audio/mp4' });
           mediaMut.mutate(file);
         }
         stream.getTracks().forEach((track) => track.stop());
