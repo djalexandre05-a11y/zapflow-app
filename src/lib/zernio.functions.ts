@@ -70,6 +70,7 @@ type WhatsAppInput = WithKey<{
   to?: string[];
   templateName?: string;
   templateLanguage?: string;
+  components?: any[];
   intervalSeconds?: number;
   scheduledAt?: string;
 }>;
@@ -90,7 +91,11 @@ export const sendWhatsAppBroadcast = createServerFn({ method: "POST" })
       name: data.name,
     };
     if (data.templateName) {
-      body.template = { name: data.templateName, language: data.templateLanguage || "pt_BR" };
+      body.template = { 
+        name: data.templateName, 
+        language: data.templateLanguage || "pt_BR",
+        ...(data.components?.length ? { components: data.components } : {})
+      };
       // Fallback message just in case the API also allows it alongside the template
       if (data.message?.trim()) {
         body.message = { text: data.message };

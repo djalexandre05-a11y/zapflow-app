@@ -137,8 +137,9 @@ function DisparosPage({ apiKey }: { apiKey: string }) {
   };
 
   const mutation = useMutation({
-    mutationFn: (payload: { scheduled: boolean }) =>
-      sendFn({
+    mutationFn: (payload: { scheduled: boolean }) => {
+      const selectedTpl = templates.find((x) => x.name === templateName);
+      return sendFn({
         data: {
           apiKey,
           profileId,
@@ -147,11 +148,13 @@ function DisparosPage({ apiKey }: { apiKey: string }) {
           to: groupId ? undefined : finalNumbers,
           templateName: templateName || undefined,
           templateLanguage: templateLang,
+          components: (selectedTpl as any)?.components,
           message: fallback || undefined,
           intervalSeconds: interval,
           scheduledAt: payload.scheduled && scheduledAt ? new Date(scheduledAt).toISOString() : undefined,
         },
-      }),
+      });
+    },
     onSuccess: (_d, v) => {
       toast.success(v.scheduled ? "Disparo agendado!" : "Disparo iniciado!");
       setNumbersText(""); setSelectedTags([]);

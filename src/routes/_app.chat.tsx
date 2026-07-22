@@ -316,13 +316,15 @@ function ChatPage({ apiKey }: { apiKey: string }) {
   const tplMut = useMutation({
     mutationFn: () => {
       const t = templates.find((x) => x.name === tplPick);
-      if (!t) throw new Error("Escolha um template");
+      if (!t || !selected) throw new Error("Template ou conversa inválida");
       return sendTplFn({
-        data: { apiKey,
-          conversationId: selected!.id,
-          accountId: selected!.accountId,
-          templateName: t.name,
-          language: t.language,
+        data: {
+          apiKey,
+          conversationId: selected.id,
+          accountId: selected.accountId,
+          templateName: tplPick,
+          language: t.language || "pt_BR",
+          components: (t as any)?.components,
         },
       });
     },
