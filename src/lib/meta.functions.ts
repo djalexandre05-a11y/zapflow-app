@@ -49,6 +49,22 @@ type BroadcastInput = {
   intervalSeconds?: number;
 };
 
+export async function logOutgoing(phone_number_id: string, from_number: string, message_text: string, res: any) {
+  try {
+    const wa_message_id = res?.messages?.[0]?.id || `local-${Date.now()}`;
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    await supabaseAdmin.from("wa_incoming").insert({
+      phone_number_id,
+      from_number,
+      from_name: "Bot",
+      message_text,
+      wa_message_id: `OUT_${wa_message_id}`,
+    });
+  } catch (e) {
+    console.error("Failed to log outgoing msg:", e);
+  }
+}
+
 export const metaSendText = createServerFn({ method: "POST" })
   .inputValidator((d: SendInput) => {
     if (!d.accessToken || !d.phoneNumberId) throw new Error("Credenciais Meta ausentes");
@@ -58,7 +74,7 @@ export const metaSendText = createServerFn({ method: "POST" })
   })
   .handler(async ({ data }) => {
     const to = data.to.replace(/\D/g, "");
-    return metaFetch(data.accessToken, `/${data.phoneNumberId}/messages`, {
+    const res = await metaFetch(data.accessToken, `/${data.phoneNumberId}/messages`, {
       method: "POST",
       body: JSON.stringify({
         messaging_product: "whatsapp",
@@ -67,6 +83,8 @@ export const metaSendText = createServerFn({ method: "POST" })
         text: { body: data.message },
       }),
     });
+    await logOutgoing(data.phoneNumberId, to, data.message, res);
+    return res;
   });
 
 export const metaSendTemplate = createServerFn({ method: "POST" })
@@ -88,10 +106,12 @@ export const metaSendTemplate = createServerFn({ method: "POST" })
         parameters: data.bodyParams.map((t) => ({ type: "text", text: t })),
       }];
     }
-    return metaFetch(data.accessToken, `/${data.phoneNumberId}/messages`, {
+    const res = await metaFetch(data.accessToken, `/${data.phoneNumberId}/messages`, {
       method: "POST",
       body: JSON.stringify({ messaging_product: "whatsapp", to, type: "template", template }),
     });
+    await logOutgoing(data.phoneNumberId, to, `[Template] ${data.templateName}`, res);
+    return res;
   });
 
 export const metaSendMedia = createServerFn({ method: "POST" })
@@ -146,6 +166,7 @@ export const metaSendMedia = createServerFn({ method: "POST" })
       method: "POST",
       body: JSON.stringify(payload),
     });
+    await logOutgoing(phoneNumberId, dest, `[Media] ${type}`, sendRes);
     return { ...sendRes, _mediaId: mediaId, _type: type };
   });
 
@@ -208,7 +229,7 @@ export const metaBroadcast = createServerFn({ method: "POST" })
       if (!to) continue;
       try {
         if (data.templateName) {
-          await metaFetch(data.accessToken, `/${data.phoneNumberId}/messages`, {
+          const res = await metaFetch(data.accessToken, `/${data.phoneNumberId}/messages`, {
             method: "POST",
             body: JSON.stringify({
               messaging_product: "whatsapp",
@@ -217,8 +238,9 @@ export const metaBroadcast = createServerFn({ method: "POST" })
               template: { name: data.templateName, language: { code: data.language || "pt_BR" } },
             }),
           });
+          await logOutgoing(data.phoneNumberId, to, `[Template] ${data.templateName}`, res);
         } else {
-          await metaFetch(data.accessToken, `/${data.phoneNumberId}/messages`, {
+          const res = await metaFetch(data.accessToken, `/${data.phoneNumberId}/messages`, {
             method: "POST",
             body: JSON.stringify({
               messaging_product: "whatsapp",
@@ -227,6 +249,7 @@ export const metaBroadcast = createServerFn({ method: "POST" })
               text: { body: data.message },
             }),
           });
+          await logOutgoing(data.phoneNumberId, to, data.message || "", res);
         }
         results.push({ to, ok: true });
       } catch (e: any) {

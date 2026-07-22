@@ -105,9 +105,10 @@ export function ChatMeta({ account }: { account: ZapAccount }) {
           for (const r of rows) {
             const phone = r.from_number.replace(/\D/g, "");
             const existing = map.get(phone);
+            const isOut = r.wa_message_id.startsWith("OUT_");
             const msg: Msg = {
-              id: r.wa_message_id,
-              direction: "incoming",
+              id: r.wa_message_id.replace(/^OUT_/, ""),
+              direction: isOut ? "outgoing" : "incoming",
               message: r.message_text || "",
               createdAt: r.received_at,
             };

@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase';
-import { metaFetch } from '@/lib/meta.functions';
+import { metaFetch, logOutgoing } from '@/lib/meta.functions';
 
 export async function advanceFlowRun(runId: string, incomingMessageText: string, metaToken: string, phoneNumberId: string) {
   // Busca o run atual
@@ -43,7 +43,7 @@ export async function advanceFlowRun(runId: string, incomingMessageText: string,
 
   // Executa
   if (nextNode.node_type === 'send_message') {
-    await metaFetch(metaToken, `/${phoneNumberId}/messages`, {
+    const res = await metaFetch(metaToken, `/${phoneNumberId}/messages`, {
       method: 'POST',
       body: JSON.stringify({
         messaging_product: 'whatsapp',
@@ -53,6 +53,7 @@ export async function advanceFlowRun(runId: string, incomingMessageText: string,
         text: { body: nextNode.config.text }
       })
     });
+    await logOutgoing(phoneNumberId, run.contact_id, nextNode.config.text, res);
   } else if (nextNode.node_type === 'end') {
     await supabase.from('flow_runs').update({ status: 'completed' }).eq('id', runId);
   }
