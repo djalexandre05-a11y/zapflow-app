@@ -175,7 +175,7 @@ export function FlowBuilder() {
 
         {state.nodes.length === 0 ? (
           <div className="border-border bg-card/50 text-muted-foreground rounded-lg border border-dashed p-8 text-center text-sm">
-            {t.rich('nodesEmpty', { strong: (chunks: any) => <strong>{chunks}</strong> })}
+            <span>{t('nodesEmpty')}</span>
           </div>
         ) : (
           state.nodes.map((node) => (
@@ -607,23 +607,21 @@ function AddNodeButton({ onAdd, t }: { onAdd: (type: NodeType) => void; t: Retur
           // DropdownMenuLabel is base-ui's Menu.GroupLabel, which throws
           // at render if it can't find a Menu.Group ancestor context. A
           // plain <div> wrapper made opening this menu crash the page.
-          <Fragment key={group.id}>
+          <DropdownMenuGroup key={group.id}>
             {i > 0 && <DropdownMenuSeparator />}
-            <DropdownMenuGroup>
-              <DropdownMenuLabel className="text-muted-foreground text-[11px] font-semibold tracking-wider uppercase">
-                {t(`categories.${group.id}`)}
-              </DropdownMenuLabel>
-              {group.types.map((t_type) => {
-                const meta = NODE_META[t_type];
-                return (
-                  <DropdownMenuItem key={t_type} onClick={() => onAdd(t_type)}>
-                    <meta.icon className={cn('h-3.5 w-3.5', meta.color)} />
-                    {t(`nodes.${t_type}.label`)}
-                  </DropdownMenuItem>
-                );
-              })}
-            </DropdownMenuGroup>
-          </Fragment>
+            <DropdownMenuLabel className="text-muted-foreground text-[11px] font-semibold tracking-wider uppercase">
+              {t(`categories.${group.id}`)}
+            </DropdownMenuLabel>
+            {group.types.map((t_type) => {
+              const meta = NODE_META[t_type];
+              return (
+                <DropdownMenuItem key={t_type} onClick={() => onAdd(t_type)}>
+                  <meta.icon className={cn('h-3.5 w-3.5', meta.color)} />
+                  {t(`nodes.${t_type}.label`)}
+                </DropdownMenuItem>
+              );
+            })}
+          </DropdownMenuGroup>
         ))}
       </DropdownMenuContent>
     </DropdownMenu>
