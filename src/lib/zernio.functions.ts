@@ -20,7 +20,7 @@ async function zfetch(apiKey: string, path: string, init: RequestInit = {}) {
   const body = text ? (() => { try { return JSON.parse(text); } catch { return text; } })() : null;
   if (!res.ok) {
     const msg = typeof body === "string" ? body : body?.error || body?.message || `HTTP ${res.status}`;
-    throw new Error(`Zernio [${res.status}]: ${msg}`);
+    throw new Error(`ZapFlow [${res.status}]: ${msg}`);
   }
   return body;
 }
@@ -93,10 +93,10 @@ export const sendWhatsAppBroadcast = createServerFn({ method: "POST" })
       body.template = { name: data.templateName, language: data.templateLanguage || "pt_BR" };
       // Fallback message just in case the API also allows it alongside the template
       if (data.message?.trim()) {
-        body.message = data.message;
+        body.message = { text: data.message };
       }
     } else {
-      body.message = data.message;
+      body.message = { text: data.message };
     }
     if (data.to?.length) body.to = data.to;
     if (data.intervalSeconds) body.intervalSeconds = data.intervalSeconds;
@@ -277,7 +277,7 @@ export const uploadMediaDirect = createServerFn({ method: "POST" })
     const body = text ? (() => { try { return JSON.parse(text); } catch { return text; } })() : null;
     if (!res.ok) {
       const msg = typeof body === "string" ? body : (body as any)?.error || `HTTP ${res.status}`;
-      throw new Error(`Zernio upload [${res.status}]: ${msg}`);
+      throw new Error(`ZapFlow upload [${res.status}]: ${msg}`);
     }
     return body as any;
   });
