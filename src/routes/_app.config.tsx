@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { Trash2, Plus, Check, Loader2, Copy } from "lucide-react";
+import { Trash2, Plus, Check, Loader2, Copy, Wand2 } from "lucide-react";
 import { useTheme } from "@/lib/theme";
 import { getWebhookInfo } from "@/lib/incoming.functions";
 
@@ -54,9 +54,25 @@ function ConfigPage() {
   const [apiKey, setApiKey] = useState("");
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => { setAccounts(loadAccounts()); }, []);
+  // AI Config State
+  const [aiKey, setAiKey] = useState("");
+  const [aiPrompt, setAiPrompt] = useState("");
+
+  useEffect(() => { 
+    setAccounts(loadAccounts());
+    try {
+      const aiSettings = JSON.parse(localStorage.getItem("zapflow.ai_settings") || "{}");
+      if (aiSettings.openaiKey) setAiKey(aiSettings.openaiKey);
+      if (aiSettings.prompt) setAiPrompt(aiSettings.prompt);
+    } catch {}
+  }, []);
 
   const persist = (list: ZapAccount[]) => { setAccounts(list); saveAccounts(list); };
+
+  const saveAiSettings = () => {
+    localStorage.setItem("zapflow.ai_settings", JSON.stringify({ openaiKey: aiKey.trim(), prompt: aiPrompt.trim() }));
+    toast.success("Configurações de IA salvas!");
+  };
 
   const addAccount = async () => {
     if (!apiKey.trim()) { toast.error("Cole sua API Key"); return; }
@@ -176,6 +192,39 @@ function ConfigPage() {
               <li>Gere uma chave começando com <code className="rounded bg-white/5 px-1">sk_</code>.</li>
               <li>Cole aqui e clique em Adicionar conta — a conta é reconhecida sozinha.</li>
             </ol>
+          </Card>
+
+          <Card title="Copiloto de Inteligência Artificial">
+            <p className="mb-4 text-sm text-slate-400">
+              Configure sua chave da OpenAI para gerar <b>Rascunhos Mágicos</b> na tela de Chat.
+            </p>
+            <div className="space-y-4">
+              <div>
+                <Label className="text-xs uppercase tracking-wide text-slate-400">OpenAI API Key (sk-...)</Label>
+                <Input
+                  type="password"
+                  value={aiKey}
+                  onChange={(e) => setAiKey(e.target.value)}
+                  placeholder="sk-proj-..."
+                  className="mt-1 bg-white/5"
+                />
+              </div>
+              <div>
+                <Label className="text-xs uppercase tracking-wide text-slate-400">Comportamento da IA (Prompt)</Label>
+                <textarea
+                  value={aiPrompt}
+                  onChange={(e) => setAiPrompt(e.target.value)}
+                  placeholder="ex: Somos a loja ZapFlow. Seja caloroso e conciso. Não dê preços."
+                  className="mt-1 w-full min-h-[80px] rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 text-slate-100"
+                />
+              </div>
+              <div className="flex justify-end pt-1">
+                <Button onClick={saveAiSettings} className="bg-emerald-500 text-[#0b1416] hover:bg-emerald-400">
+                  <Wand2 className="mr-2 h-4 w-4" />
+                  Salvar Copiloto
+                </Button>
+              </div>
+            </div>
           </Card>
 
           <WebhookCard />

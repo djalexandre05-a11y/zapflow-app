@@ -2,10 +2,11 @@ import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Loader2, Send, Search, MessageCircle, Plus, RefreshCw, Paperclip } from "lucide-react";
+import { Loader2, Send, Search, MessageCircle, Plus, RefreshCw, Paperclip, Wand2 } from "lucide-react";
 
 import { metaSendText, metaSendTemplate, metaListTemplates, metaSendMedia } from "@/lib/meta.functions";
 import { fetchIncomingMessages } from "@/lib/incoming.functions";
+import { generateDraft } from "@/lib/ai.functions";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/components/auth-provider";
 import { Input } from "@/components/ui/input";
@@ -59,6 +60,7 @@ export function ChatMeta({ account }: { account: ZapAccount }) {
   const listTplFn = useServerFn(metaListTemplates);
   const fetchInFn = useServerFn(fetchIncomingMessages);
   const sendMediaFn = useServerFn(metaSendMedia);
+  const aiDraftFn = useServerFn(generateDraft);
 
   const [convs, setConvs] = useState<Conv[]>(() => loadConvs(phoneNumberId));
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -238,6 +240,31 @@ export function ChatMeta({ account }: { account: ZapAccount }) {
       }));
     },
     onSuccess: () => toast.success("Arquivo enviado"),
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const draftMut = useMutation({
+    mutationFn: async () => {
+      if (!selected) throw new Error("Selecione uma conversa");
+      let aiSettings;
+      try { aiSettings = JSON.parse(localStorage.getItem("zapflow.ai_settings") || "{}"); } catch {}
+      
+      if (!aiSettings?.openaiKey) {
+        throw new Error("Chave da OpenAI não configurada. Acesse Configurações.");
+      }
+
+      // Grab last 10 messages for context
+      const history = selected.messages.slice(-10).map(m => ({
+        role: m.direction, // "incoming" or "outgoing"
+        content: m.message
+      }));
+
+      return aiDraftFn({ data: { apiKey: aiSettings.openaiKey, systemPrompt: aiSettings.prompt || "", history } });
+    },
+    onSuccess: (res: any) => {
+      setReply(res?.text || "");
+      toast.success("Rascunho gerado!");
+    },
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -528,6 +555,9 @@ export function ChatMeta({ account }: { account: ZapAccount }) {
                 ) : (
                   <>
                     <div className="flex gap-2">
+                      <Button onClick={() => draftMut.mutate()} disabled={draftMut.isPending || !selected} className="border border-indigo-500/30 bg-indigo-500/10 px-3 text-indigo-400 hover:bg-indigo-500/20 hover:text-indigo-300" title="Rascunho Mágico com IA">
+                        {draftMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
+                      </Button>
                       <input
                         type="file"
                         ref={fileRef}
