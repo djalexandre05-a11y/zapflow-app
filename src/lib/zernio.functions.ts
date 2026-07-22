@@ -152,17 +152,30 @@ export const listConversationMessages = createServerFn({ method: "POST" })
   });
 
 export const sendConversationMessage = createServerFn({ method: "POST" })
-  .inputValidator((d: WithKey<{ conversationId: string; accountId: string; message: string }>) => {
+  .inputValidator((d: WithKey<{ 
+    conversationId: string; 
+    accountId: string; 
+    message?: string;
+    attachmentUrl?: string;
+    attachmentType?: "image" | "video" | "audio" | "file";
+    voiceNote?: boolean;
+  }>) => {
     assertKey(d.apiKey);
     if (!d.conversationId) throw new Error("conversationId obrigatório");
     if (!d.accountId) throw new Error("accountId obrigatório");
-    if (!d.message?.trim()) throw new Error("Mensagem vazia");
+    if (!d.message?.trim() && !d.attachmentUrl) throw new Error("Mensagem vazia");
     return d;
   })
   .handler(async ({ data }) => {
     return zfetch(data.apiKey, `/inbox/conversations/${encodeURIComponent(data.conversationId)}/messages`, {
       method: "POST",
-      body: JSON.stringify({ accountId: data.accountId, message: data.message }),
+      body: JSON.stringify({ 
+        accountId: data.accountId, 
+        message: data.message || undefined,
+        attachmentUrl: data.attachmentUrl || undefined,
+        attachmentType: data.attachmentType || undefined,
+        voiceNote: data.voiceNote || undefined,
+      }),
     });
   });
 

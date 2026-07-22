@@ -1,9 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef } from "react";
 import { toast } from "sonner";
-import { RefreshCw, Loader2, Send, CheckCheck, Search, MessageCircle, Paperclip, Wand2, Mic } from "lucide-react";
+import { RefreshCw, Loader2, Send, CheckCheck, Search, MessageCircle, Paperclip, Wand2, Mic, Trash2 } from "lucide-react";
 
 import {
   listAccounts,
@@ -11,9 +11,9 @@ import {
   listConversations,
   listConversationMessages,
   sendConversationMessage,
-  sendConversationTemplate,
   markConversationRead,
   listWhatsAppTemplates,
+  uploadMediaDirect,
 } from "@/lib/zernio.functions";
 import { generateDraft } from "@/lib/ai.functions";
 import { Input } from "@/components/ui/input";
@@ -71,6 +71,7 @@ function ChatPage({ apiKey }: { apiKey: string }) {
   const readFn = useServerFn(markConversationRead);
   const templatesFn = useServerFn(listWhatsAppTemplates);
   const aiDraftFn = useServerFn(generateDraft);
+  const uploadFn = useServerFn(uploadMediaDirect);
 
 
   const profilesQ = useQuery({ queryKey: ["z", "profiles", apiKey], queryFn: () => profilesFn({ data: { apiKey } }) });
@@ -84,6 +85,15 @@ function ChatPage({ apiKey }: { apiKey: string }) {
   const [reply, setReply] = useState("");
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<"newest" | "oldest" | "unread">("newest");
+
+  // Audio & File state
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const timerRef = useRef<number | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   // auto-select first profile
   useMemo(() => {
@@ -150,6 +160,51 @@ function ChatPage({ apiKey }: { apiKey: string }) {
     onSuccess: (res: any) => {
       setReply(res?.text || "");
       toast.success("Rascunho gerado!");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const mediaMut = useMutation({
+    mutationFn: async (file: File) => {
+      if (!selected) throw new Error("Selecione uma conversa");
+      
+      const toBase64 = (f: File) => new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(f);
+        reader.onload = () => {
+          let encoded = reader.result as string;
+          encoded = encoded.replace(/^data:(.*,)?/, "");
+          if ((encoded.length % 4) > 0) encoded += "=".repeat(4 - (encoded.length % 4));
+          resolve(encoded);
+        };
+        reader.onerror = error => reject(error);
+      });
+      const fileBase64 = await toBase64(file);
+      const isVoice = file.type.includes("audio");
+
+      // 1. Faz o upload pro Zernio
+      const res = await uploadFn({
+        data: { apiKey, fileBase64, filename: file.name, contentType: file.type }
+      });
+      
+      const attachType = file.type.includes("image") ? "image" : file.type.includes("video") ? "video" : file.type.includes("audio") ? "audio" : "file";
+
+      // 2. Envia a mensagem referenciando o anexo
+      await sendMsgFn({
+        data: {
+          apiKey,
+          conversationId: selected.id,
+          accountId: selected.accountId,
+          attachmentUrl: res.url,
+          attachmentType: attachType,
+          voiceNote: isVoice,
+        }
+      });
+    },
+    onSuccess: () => {
+      msgsQ.refetch();
+      convsQ.refetch();
+      toast.success("Mídia enviada!");
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -434,41 +489,66 @@ function ChatPage({ apiKey }: { apiKey: string }) {
                   </div>
                 ) : (
                   <>
-                    <div className="flex gap-2">
-                      <Button onClick={() => draftMut.mutate()} disabled={draftMut.isPending || !selected} className="border border-indigo-500/30 bg-indigo-500/10 px-3 text-indigo-400 hover:bg-indigo-500/20 hover:text-indigo-300" title="Rascunho Mágico com IA">
-                        {draftMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
-                      </Button>
-                      <Button onClick={() => toast.info("Em breve: Envio de anexos via Zernio")} className="border border-white/10 bg-[#0b1416] px-3 text-slate-400 hover:bg-white/5 hover:text-white" title="Anexar arquivo">
-                        <Paperclip className="h-4 w-4" />
-                      </Button>
-                      <Textarea
-                        rows={2}
-                        value={reply}
-                        onChange={(e) => setReply(e.target.value)}
-                        placeholder="Escreva uma resposta…"
-                        className="min-h-[52px] border-white/10 bg-[#0b1416]"
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" && !e.shiftKey) {
-                            e.preventDefault();
-                            if (reply.trim()) sendMut.mutate();
-                          }
-                        }}
-                      />
-                      {reply.trim() ? (
-                        <Button
-                          onClick={() => sendMut.mutate()}
-                          disabled={sendMut.isPending}
-                          className="bg-emerald-500 px-4 text-[#0b1416] hover:bg-emerald-400"
-                        >
-                          {sendMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                    {isRecording ? (
+                      <div className="flex w-full items-center gap-2">
+                        <Button onClick={cancelRecording} variant="ghost" className="h-[52px] border border-white/10 px-4 text-rose-500 hover:bg-rose-500/10 hover:text-rose-400">
+                          <Trash2 className="h-5 w-5" />
                         </Button>
-                      ) : (
-                        <Button onClick={() => toast.info("Em breve: Áudio via Zernio")} className="bg-emerald-500 px-4 text-[#0b1416] hover:bg-emerald-400">
-                          <Mic className="h-5 w-5" />
+                        <div className="flex h-[52px] flex-1 items-center justify-center gap-2 rounded-md border border-white/10 bg-[#0b1416] text-emerald-500">
+                          <span className="relative flex h-3 w-3">
+                            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
+                            <span className="relative inline-flex h-3 w-3 rounded-full bg-emerald-500"></span>
+                          </span>
+                          <span className="font-mono text-sm">{formatTime(recordingTime)}</span>
+                        </div>
+                        <Button onClick={stopRecording} className="h-[52px] bg-emerald-500 px-5 text-[#0b1416] hover:bg-emerald-400">
+                          <Send className="h-5 w-5" />
                         </Button>
-                      )}
-                    </div>
-                    <div className="mt-1 text-[10px] text-slate-500">Enter para enviar, Shift + Enter para quebrar linha</div>
+                      </div>
+                    ) : (
+                      <div className="flex gap-2">
+                        <Button onClick={() => draftMut.mutate()} disabled={draftMut.isPending || !selected} className="border border-indigo-500/30 bg-indigo-500/10 px-3 text-indigo-400 hover:bg-indigo-500/20 hover:text-indigo-300" title="Rascunho Mágico com IA">
+                          {draftMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
+                        </Button>
+                        <input
+                          type="file"
+                          ref={fileRef}
+                          className="hidden"
+                          onChange={handleFileChange}
+                          accept=".jpg,.jpeg,.png,.gif,.webp,.mp4,.mp3,.pdf,.doc,.docx,.xls,.xlsx,.txt"
+                        />
+                        <Button onClick={() => fileRef.current?.click()} disabled={mediaMut.isPending} className="border border-white/10 bg-[#0b1416] px-3 text-slate-400 hover:bg-white/5 hover:text-white" title="Anexar arquivo">
+                          {mediaMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}
+                        </Button>
+                        <Textarea
+                          rows={2}
+                          value={reply}
+                          onChange={(e) => setReply(e.target.value)}
+                          placeholder="Escreva uma resposta…"
+                          className="min-h-[52px] border-white/10 bg-[#0b1416]"
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && !e.shiftKey) {
+                              e.preventDefault();
+                              if (reply.trim()) sendMut.mutate();
+                            }
+                          }}
+                        />
+                        {reply.trim() ? (
+                          <Button
+                            onClick={() => sendMut.mutate()}
+                            disabled={sendMut.isPending}
+                            className="bg-emerald-500 px-4 text-[#0b1416] hover:bg-emerald-400"
+                          >
+                            {sendMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                          </Button>
+                        ) : (
+                          <Button onClick={startRecording} className="bg-emerald-500 px-4 text-[#0b1416] hover:bg-emerald-400">
+                            <Mic className="h-5 w-5" />
+                          </Button>
+                        )}
+                      </div>
+                    )}
+                    {!isRecording && <div className="mt-1 text-[10px] text-slate-500">Enter para enviar, Shift + Enter para quebrar linha</div>}
                   </>
                 )}
               </div>
