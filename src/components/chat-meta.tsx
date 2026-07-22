@@ -412,7 +412,13 @@ export function ChatMeta({ account }: { account: ZapAccount }) {
                   return (
                     <div key={m.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
                       <div className={`max-w-[70%] rounded-2xl px-3 py-2 text-sm ${mine ? "bg-emerald-600/90 text-white" : "bg-[#1a2b2e] text-slate-100"}`}>
-                        <div className="whitespace-pre-wrap break-words">{m.message}</div>
+                        <div className="whitespace-pre-wrap break-words">
+                          {!mine && /^(?:\[image\]|\[video\]|\[audio\]|\[document\])\|/.test(m.message) ? (
+                            <MediaMessage text={m.message} accessToken={accessToken} />
+                          ) : (
+                            m.message
+                          )}
+                        </div>
                         <div className={`mt-1 text-right text-[10px] ${mine ? "text-emerald-50/70" : "text-slate-500"}`}>
                           {new Date(m.createdAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
                         </div>
@@ -493,4 +499,73 @@ function relTime(iso: string) {
   const d = Math.floor(h / 24);
   if (d < 7) return `${d}d`;
   return new Date(iso).toLocaleDateString("pt-BR");
+}
+
+function MediaMessage({ text, accessToken }: { text: string; accessToken: string }) {
+  const [loading, setLoading] = useState(true);
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+  const [error, setError] = useState("");
+
+  const parts = text.split("|");
+  const typeStr = parts[0];
+  const mediaId = parts[1];
+  const caption = parts.slice(2).join("|");
+  const type = typeStr.replace(/\[|\]/g, "");
+
+  useEffect(() => {
+    if (!mediaId) {
+      setLoading(false);
+      return;
+    }
+    let alive = true;
+    (async () => {
+      try {
+        const res = await fetch(`https://graph.facebook.com/v21.0/${mediaId}`, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        const data = await res.json();
+        if (!data.url) throw new Error("URL de mídia não encontrada");
+
+        const fileRes = await fetch(data.url, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        if (!fileRes.ok) throw new Error("Erro ao baixar o arquivo");
+        const blob = await fileRes.blob();
+        
+        if (!alive) return;
+        setBlobUrl(URL.createObjectURL(blob));
+      } catch (err: any) {
+        if (alive) setError(err.message);
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
+    return () => { alive = false; };
+  }, [mediaId, accessToken]);
+
+  if (!mediaId) return <div>{text}</div>;
+
+  return (
+    <div className="flex flex-col gap-2">
+      {loading ? (
+        <div className="flex items-center gap-2 text-slate-400">
+          <Loader2 className="h-4 w-4 animate-spin" /> Baixando...
+        </div>
+      ) : error ? (
+        <div className="text-red-400 text-xs">Erro: {error}</div>
+      ) : blobUrl ? (
+        <div className="max-w-[240px]">
+          {type === "image" && <img src={blobUrl} alt={caption} className="max-w-full rounded-lg" />}
+          {type === "video" && <video src={blobUrl} controls className="max-w-full rounded-lg" />}
+          {type === "audio" && <audio src={blobUrl} controls className="max-w-full" />}
+          {type === "document" && (
+            <a href={blobUrl} download={caption || "documento"} className="flex items-center gap-2 text-emerald-400 underline">
+              <Paperclip className="h-4 w-4" /> {caption || "Baixar documento"}
+            </a>
+          )}
+        </div>
+      ) : null}
+      {caption && <div className="mt-1 text-sm">{caption}</div>}
+    </div>
+  );
 }

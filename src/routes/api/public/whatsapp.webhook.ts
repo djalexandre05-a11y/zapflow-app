@@ -42,7 +42,11 @@ export const Route = createFileRoute("/api/public/whatsapp/webhook")({
                 else if (m.type === "button") text = m.button?.text ?? null;
                 else if (m.type === "interactive")
                   text = m.interactive?.button_reply?.title ?? m.interactive?.list_reply?.title ?? null;
-                else text = `[${m.type}]`;
+                else if (["image", "video", "audio", "document"].includes(m.type)) {
+                  const mediaId = m[m.type]?.id;
+                  const caption = m[m.type]?.caption || m[m.type]?.filename || "";
+                  text = `[${m.type}]${mediaId ? `|${mediaId}` : ""}${caption ? `|${caption}` : ""}`;
+                } else text = `[${m.type}]`;
                 rows.push({
                   phone_number_id: phoneNumberId,
                   from_number: m.from,
