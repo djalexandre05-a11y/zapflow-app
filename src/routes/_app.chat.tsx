@@ -518,11 +518,23 @@ function ChatPage({ apiKey }: { apiKey: string }) {
                     <div key={m.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
                       <div className={`max-w-[70%] rounded-2xl px-3 py-2 text-sm ${mine ? "bg-emerald-600/90 text-white" : "bg-[#1a2b2e] text-slate-100"}`}>
                         <div className="whitespace-pre-wrap break-words">{m.message || <span className="opacity-60">(sem texto)</span>}</div>
-                        {m.attachments?.map((a) => (
-                          <a key={a.id} href={a.url} target="_blank" rel="noreferrer" className="mt-1 block text-xs underline opacity-80">
-                            {a.type} anexo
-                          </a>
-                        ))}
+                        {m.attachments?.map((a) => {
+                          if (a.type === "image") {
+                            return <img key={a.id} src={a.url} alt="anexo" className="mt-2 max-h-64 rounded-lg object-contain" />;
+                          }
+                          if (a.type === "audio") {
+                            return <audio key={a.id} src={a.url} controls className="mt-2 h-10 w-full max-w-[240px]" />;
+                          }
+                          if (a.type === "video") {
+                            return <video key={a.id} src={a.url} controls className="mt-2 max-h-64 rounded-lg object-contain" />;
+                          }
+                          return (
+                            <a key={a.id} href={a.url} target="_blank" rel="noreferrer" className="mt-2 flex items-center gap-1 text-sm underline opacity-80 hover:opacity-100">
+                              <Paperclip className="h-3.5 w-3.5" />
+                              Baixar anexo ({a.type})
+                            </a>
+                          );
+                        })}
                         {m.createdAt && (
                           <div className={`mt-1 text-right text-[10px] ${mine ? "text-emerald-50/70" : "text-slate-500"}`}>
                             {new Date(m.createdAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
