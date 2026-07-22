@@ -47,6 +47,8 @@ type BroadcastInput = {
   language?: string;
   components?: any[];
   message?: string;
+  mediaId?: string;
+  mediaType?: "image" | "audio" | "video" | "document";
   intervalSeconds?: number;
 };
 
@@ -203,6 +205,7 @@ export const metaCreateTemplate = createServerFn({ method: "POST" })
   });
 
 export const metaUploadMedia = createServerFn({ method: "POST" })
+  .inputValidator((d: any) => d)
   .handler(async ({ data }: { data: any }) => {
     const isForm = data instanceof FormData;
     const accessToken = isForm ? data.get("accessToken") as string : data.accessToken;
@@ -226,6 +229,8 @@ export const metaUploadMedia = createServerFn({ method: "POST" })
     
     return { mediaId: uploadBody.id };
   });
+
+
 
 export const metaDeleteTemplate = createServerFn({ method: "POST" })
   .inputValidator((d: DeleteTplInput) => {
