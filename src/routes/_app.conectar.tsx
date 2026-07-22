@@ -6,7 +6,9 @@ import { toast } from "sonner";
 import { Plus, X, Loader2, ShieldCheck, Smartphone, Copy, Pencil, Trash2, CheckCircle2 } from "lucide-react";
 import { PageHeader } from "@/components/app-ui";
 import { connectWhatsAppCredentials } from "@/lib/zernio.functions";
-import { loadAccounts, type ZapAccount } from "@/lib/account";
+import { useAccounts, type ZapAccount } from "@/lib/account";
+import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/components/auth-provider";
 
 export const Route = createFileRoute("/_app/conectar")({
   component: NumbersPage,
@@ -22,23 +24,17 @@ type Num = ZapAccount & {
 };
 
 function NumbersPage() {
-  const [nums, setNums] = useState<Num[]>([]);
+  const { accounts: nums, loading } = useAccounts();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Num | null>(null);
 
-  const refresh = () => setNums(loadAccounts() as Num[]);
-  useEffect(() => {
-    refresh();
-    const onS = (e: StorageEvent) => { if (e.key === "zapflow.accounts") refresh(); };
-    window.addEventListener("storage", onS);
-    return () => window.removeEventListener("storage", onS);
-  }, []);
-
-  const remove = (id: string) => {
-    const list = loadAccounts().filter((a) => a.id !== id);
-    localStorage.setItem("zapflow.accounts", JSON.stringify(list));
-    window.dispatchEvent(new StorageEvent("storage", { key: "zapflow.accounts" }));
-    toast.success("Número removido");
+  const remove = async (id: string) => {
+    const { error } = await supabase.from("user_accounts").delete().eq("id", id);
+    if (!error) {
+      toast.success("Número removido");
+    } else {
+      toast.error("Erro ao remover número");
+    }
   };
 
   return (
@@ -69,14 +65,21 @@ function NumbersPage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-white/5">
-            {nums.length === 0 && (
+            {loading ? (
+              <tr>
+                <td colSpan={6} className="px-5 py-12 text-center text-sm text-slate-500">
+                  <Loader2 className="mx-auto h-6 w-6 animate-spin text-slate-400" />
+                  <div className="mt-2">Carregando seus números...</div>
+                </td>
+              </tr>
+            ) : nums.length === 0 ? (
               <tr>
                 <td colSpan={6} className="px-5 py-12 text-center text-sm text-slate-500">
                   Nenhum número conectado ainda. Clique em <span className="text-slate-300">Connect WhatsApp Number</span> para começar.
                 </td>
               </tr>
-            )}
-            {nums.map((n) => (
+            ) : (
+              nums.map((n) => (
               <tr key={n.id} className="text-slate-200">
                 <td className="px-5 py-4">
                   <div className="flex items-center gap-3">
@@ -130,7 +133,7 @@ function NumbersPage() {
                   </div>
                 </td>
               </tr>
-            ))}
+            )))}
           </tbody>
         </table>
       </div>
@@ -139,7 +142,7 @@ function NumbersPage() {
         <ConnectModal
           initial={editing}
           onClose={() => setOpen(false)}
-          onDone={() => { setOpen(false); refresh(); }}
+          onDone={() => setOpen(false)}
         />
       )}
     </div>
@@ -148,6 +151,7 @@ function NumbersPage() {
 
 function ConnectModal({ initial, onClose, onDone }: { initial: Num | null; onClose: () => void; onDone: () => void }) {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [accessToken, setAccessToken] = useState((initial as any)?.accessToken || "");
   const [wabaId, setWabaId] = useState((initial as any)?.wabaId || "");
   const [phoneNumberId, setPhoneNumberId] = useState(initial?.phoneNumberId || "");
@@ -155,29 +159,29 @@ function ConnectModal({ initial, onClose, onDone }: { initial: Num | null; onClo
 
   const mut = useMutation({
     mutationFn: async () => connect({ data: { apiKey: "", profileId: "", accessToken, wabaId, phoneNumberId } }),
-    onSuccess: (res: any) => {
-      const KEY = "zapflow.accounts";
-      const list: any[] = JSON.parse(localStorage.getItem(KEY) || "[]");
+    onSuccess: async (res: any) => {
       const acc = res?.account || {};
       const id = initial?.id || acc.id || phoneNumberId;
-      const next = list.filter((a) => a.id !== id).map((a) => ({ ...a, active: false }));
-      next.unshift({
+      
+      // Update the previous active account to false, and this new one to true
+      await supabase.from("user_accounts").update({ active: false }).eq("user_id", user?.id);
+
+      const { error } = await supabase.from("user_accounts").upsert({
         id,
+        user_id: user?.id,
         name: acc.name || `WhatsApp ${phoneNumberId}`,
-        displayName: acc.name,
-        phone: acc.phone,
-        apiKey: "",
         provider: "meta",
-        accessToken,
-        wabaId,
-        phoneNumberId,
-        status: "Active",
-        quality: acc.qualityRating || "GREEN",
-        messagingLimit: 250,
+        token: accessToken,
+        waba_id: wabaId,
+        phone_number_id: phoneNumberId,
         active: true,
       });
-      localStorage.setItem(KEY, JSON.stringify(next));
-      window.dispatchEvent(new StorageEvent("storage", { key: KEY }));
+
+      if (error) {
+        toast.error("Erro ao salvar conta no banco.");
+        return;
+      }
+
       toast.success(`Conectado: ${acc.name || phoneNumberId} — abrindo chat`);
       onDone();
       navigate({ to: "/chat" });

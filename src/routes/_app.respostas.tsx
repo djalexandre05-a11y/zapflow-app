@@ -1,35 +1,69 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
-import { Zap, Plus, Trash2 } from "lucide-react";
+import { Zap, Plus, Trash2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader, Card, EmptyState } from "@/components/app-ui";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/components/auth-provider";
 
 export const Route = createFileRoute("/_app/respostas")({ component: RespostasPage });
 
 type QuickReply = { id: string; trigger: string; response: string };
-const KEY = "zapflow.quickreplies";
 
 function RespostasPage() {
   const [items, setItems] = useState<QuickReply[]>([]);
   const [trigger, setTrigger] = useState("");
   const [response, setResponse] = useState("");
+  const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    try { setItems(JSON.parse(localStorage.getItem(KEY) || "[]")); } catch { setItems([]); }
-  }, []);
+    if (!user) return;
+    const fetchReplies = async () => {
+      const { data, error } = await supabase
+        .from("user_quick_replies")
+        .select("*")
+        .order("created_at", { ascending: false });
+      
+      if (!error && data) {
+        setItems(data.map((d) => ({ id: d.id, trigger: d.trigger, response: d.message })));
+      }
+      setLoading(false);
+    };
+    fetchReplies();
+  }, [user]);
 
-  const persist = (next: QuickReply[]) => { setItems(next); localStorage.setItem(KEY, JSON.stringify(next)); };
+  const add = async () => {
+    if (!trigger.trim() || !response.trim() || !user) return;
+    
+    const { data, error } = await supabase
+      .from("user_quick_replies")
+      .insert([{ user_id: user.id, trigger, message: response }])
+      .select("*")
+      .single();
 
-  const add = () => {
-    if (!trigger.trim() || !response.trim()) return;
-    persist([{ id: crypto.randomUUID(), trigger, response }, ...items]);
+    if (error) {
+      toast.error("Erro ao salvar resposta rápida");
+      return;
+    }
+
+    setItems([{ id: data.id, trigger: data.trigger, response: data.message }, ...items]);
     setTrigger(""); setResponse("");
     toast.success("Resposta rápida salva");
+  };
+
+  const remove = async (id: string) => {
+    const { error } = await supabase.from("user_quick_replies").delete().eq("id", id);
+    if (!error) {
+      setItems(items.filter((x) => x.id !== id));
+      toast.success("Removido com sucesso");
+    } else {
+      toast.error("Erro ao remover");
+    }
   };
 
   return (
@@ -51,7 +85,12 @@ function RespostasPage() {
             </div>
           </Card>
           <Card title={`Atalhos (${items.length})`}>
-            {items.length === 0 ? (
+            {loading ? (
+              <div className="flex flex-col items-center justify-center p-8 text-sm text-slate-500">
+                <Loader2 className="mb-2 h-6 w-6 animate-spin text-slate-400" />
+                Carregando...
+              </div>
+            ) : items.length === 0 ? (
               <EmptyState icon={<Zap className="h-6 w-6" />} title="Nenhuma resposta" description="Crie atalhos como /ola, /obrigado, /precos para responder mais rápido." />
             ) : (
               <ul className="space-y-2">
@@ -62,7 +101,7 @@ function RespostasPage() {
                         <div className="text-sm font-semibold text-emerald-400">{r.trigger}</div>
                         <div className="mt-1 whitespace-pre-wrap break-words text-xs text-slate-400">{r.response}</div>
                       </div>
-                      <button onClick={() => persist(items.filter((x) => x.id !== r.id))} className="rounded p-1.5 text-slate-400 hover:bg-white/5 hover:text-rose-400"><Trash2 className="h-4 w-4" /></button>
+                      <button onClick={() => remove(r.id)} className="rounded p-1.5 text-slate-400 hover:bg-white/5 hover:text-rose-400"><Trash2 className="h-4 w-4" /></button>
                     </div>
                   </li>
                 ))}

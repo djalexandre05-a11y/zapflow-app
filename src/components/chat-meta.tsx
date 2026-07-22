@@ -6,6 +6,8 @@ import { Loader2, Send, Search, MessageCircle, Plus, RefreshCw, Paperclip } from
 
 import { metaSendText, metaSendTemplate, metaListTemplates, metaSendMedia } from "@/lib/meta.functions";
 import { fetchIncomingMessages } from "@/lib/incoming.functions";
+import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/components/auth-provider";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -50,6 +52,7 @@ export function ChatMeta({ account }: { account: ZapAccount }) {
   const phoneNumberId = account.phoneNumberId!;
   const accessToken = account.accessToken!;
   const wabaId = account.wabaId!;
+  const { user } = useAuth();
 
   const sendTextFn = useServerFn(metaSendText);
   const sendTplFn = useServerFn(metaSendTemplate);
@@ -70,8 +73,13 @@ export function ChatMeta({ account }: { account: ZapAccount }) {
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    try { setContacts(JSON.parse(localStorage.getItem("zapflow.contacts") || "[]")); } catch { }
-  }, []);
+    if (!user) return;
+    const load = async () => {
+      const { data } = await supabase.from("user_contacts").select("*").eq("user_id", user.id);
+      if (data) setContacts(data);
+    };
+    load();
+  }, [user]);
 
   useEffect(() => { setConvs(loadConvs(phoneNumberId)); setSelectedId(null); }, [phoneNumberId]);
   useEffect(() => { saveConvs(phoneNumberId, convs); }, [phoneNumberId, convs]);

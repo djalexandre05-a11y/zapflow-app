@@ -1,15 +1,16 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { FileText, Send } from "lucide-react";
+import { FileText, Send, Loader2 } from "lucide-react";
 import { PageHeader } from "@/components/app-ui";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/components/auth-provider";
 
 export const Route = createFileRoute("/_app/contatos")({ component: ContatosPage });
 
 type Contact = { id: string; name: string; phone: string; tags: string[] };
-const KEY = "zapflow.contacts";
 
 function ContatosPage() {
   const nav = useNavigate();
@@ -20,31 +21,59 @@ function ContatosPage() {
   const [q, setQ] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    try { setItems(JSON.parse(localStorage.getItem(KEY) || "[]")); } catch { setItems([]); }
-  }, []);
+  const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
 
-  const persist = (next: Contact[]) => {
-    setItems(next);
-    localStorage.setItem(KEY, JSON.stringify(next));
+  const fetchContacts = async () => {
+    if (!user) return;
+    const { data, error } = await supabase
+      .from("user_contacts")
+      .select("*")
+      .order("created_at", { ascending: false });
+    
+    if (!error && data) {
+      setItems(data);
+    }
+    setLoading(false);
   };
 
-  const add = () => {
+  useEffect(() => {
+    fetchContacts();
+  }, [user]);
+
+  const add = async () => {
+    if (!user) return;
     const digits = phone.replace(/\D/g, "");
     if (!digits) { toast.error("Informe um número válido"); return; }
-    const c: Contact = {
-      id: crypto.randomUUID(),
+    
+    const c = {
+      user_id: user.id,
       name: name.trim() || digits,
       phone: digits,
       tags: tags.split(",").map((t) => t.trim()).filter(Boolean),
     };
-    persist([c, ...items]);
+
+    const { data, error } = await supabase.from("user_contacts").insert([c]).select("*").single();
+    
+    if (error) {
+      toast.error("Erro ao adicionar contato");
+      return;
+    }
+
+    setItems([data, ...items]);
     setName(""); setPhone(""); setTags("");
     toast.success("Contato adicionado");
   };
 
-  const remove = (id: string) => persist(items.filter((c) => c.id !== id));
+  const remove = async (id: string) => {
+    const { error } = await supabase.from("user_contacts").delete().eq("id", id);
+    if (!error) {
+      setItems(items.filter((c) => c.id !== id));
+      toast.success("Contato removido");
+    } else {
+      toast.error("Erro ao remover");
+    }
+  };
 
   const importCsv = async (file: File) => {
     try {
@@ -103,6 +132,7 @@ function ContatosPage() {
         const tagsRaw = tagIdx >= 0 ? (cells[tagIdx] || "") : "";
         parsed.push({
           id: crypto.randomUUID(),
+          user_id: user?.id,
           name: nm || digits,
           phone: digits,
           tags: tagsRaw.split(/[|,;/]/).map((t) => t.trim()).filter(Boolean),
@@ -110,7 +140,16 @@ function ContatosPage() {
       }
 
       if (!parsed.length) { toast.error("Nenhum contato encontrado no CSV"); return; }
-      persist([...parsed, ...items]);
+      
+      // Save to Supabase
+      const { data, error } = await supabase.from("user_contacts").insert(parsed.map(({ id, ...rest }) => rest)).select("*");
+      
+      if (error) {
+        toast.error("Erro ao salvar contatos no banco.");
+        return;
+      }
+      
+      setItems([...(data || []), ...items]);
       toast.success(`${parsed.length} contato(s) importado(s)`);
     } catch (e) {
       toast.error("Falha ao ler CSV: " + (e as Error).message);
@@ -231,7 +270,12 @@ function parseCSV(text: string): string[][] {
               <div>Tags</div>
               <div />
             </div>
-            {filtered.length === 0 ? (
+            {loading ? (
+              <div className="flex flex-col items-center justify-center px-4 py-10 text-sm text-slate-500">
+                <Loader2 className="mb-2 h-6 w-6 animate-spin text-slate-400" />
+                Carregando contatos...
+              </div>
+            ) : filtered.length === 0 ? (
               <div className="px-4 py-10 text-center text-sm text-slate-500">
                 Nenhum contato. Adicione acima ou importe um CSV.
               </div>
