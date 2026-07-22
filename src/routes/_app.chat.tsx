@@ -448,9 +448,9 @@ function ChatPage({ apiKey }: { apiKey: string }) {
                         placeholder="Escreva uma resposta…"
                         className="min-h-[52px] border-white/10 bg-[#0b1416]"
                         onKeyDown={(e) => {
-                          if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && reply.trim()) {
+                          if (e.key === "Enter" && !e.shiftKey) {
                             e.preventDefault();
-                            sendMut.mutate();
+                            if (reply.trim()) sendMut.mutate();
                           }
                         }}
                       />
@@ -468,7 +468,7 @@ function ChatPage({ apiKey }: { apiKey: string }) {
                         </Button>
                       )}
                     </div>
-                    <div className="mt-1 text-[10px] text-slate-500">Ctrl/⌘ + Enter para enviar</div>
+                    <div className="mt-1 text-[10px] text-slate-500">Enter para enviar, Shift + Enter para quebrar linha</div>
                   </>
                 )}
               </div>
