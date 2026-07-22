@@ -42,8 +42,9 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { useNavigate, useRouter } from "@tanstack/react-router";
+import { useRouter } from "@tanstack/react-router";
 import { toast } from "sonner";
+import { supabase } from "@/lib/supabase";
 
 import {
   validateFlowForActivation,
@@ -332,21 +333,20 @@ export function FlowEditorProvider({
   const save = useCallback(async () => {
     setSaving(true);
     try {
-      const res = await fetch(`/api/flows/${initialFlow.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const { error } = await supabase
+        .from("flows")
+        .update({
           name: state.name,
           description: state.description || null,
           trigger_type: state.trigger_type,
-          trigger_config: state.trigger_config,
+          trigger_config: state.trigger_config as any,
           entry_node_id: state.entry_node_id,
-          nodes: state.nodes,
-        }),
-      });
-      if (!res.ok) {
-        const json = await res.json().catch(() => ({}));
-        throw new Error(json.error ?? `Save failed: ${res.status}`);
+          nodes: state.nodes as any,
+        })
+        .eq("id", initialFlow.id);
+      
+      if (error) {
+        throw new Error(error.message ?? "Save failed");
       }
       setDirty(false);
       toast.success(t("saved"));
@@ -361,26 +361,21 @@ export function FlowEditorProvider({
   // ---- Activate / Pause / Archive ----
   const setStatus = useCallback(
     async (next: BuilderState["status"]) => {
-      if (next === "active" && !canActivate) {
-        toast.error(t("fixIssues"));
-        return;
-      }
       setActivating(true);
       try {
-        // Always save first so the activation validator sees the
-        // latest state — the user shouldn't have to remember "save
-        // then activate".
-        if (next === "active") {
-          await save();
+        if (next === "active" && !canActivate) {
+          throw new Error("Cannot activate flow with errors");
         }
-        const res = await fetch(`/api/flows/${initialFlow.id}/activate`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status: next }),
-        });
-        if (!res.ok) {
-          const json = await res.json().catch(() => ({}));
-          throw new Error(json.error ?? `Status update failed: ${res.status}`);
+        // Implicit save before activation
+        if (next === "active") await save();
+
+        const { error } = await supabase
+          .from("flows")
+          .update({ status: next })
+          .eq("id", initialFlow.id);
+
+        if (error) {
+          throw new Error(error.message ?? "Status update failed");
         }
         setStateRaw((s) => ({ ...s, status: next }));
         toast.success(
@@ -407,11 +402,13 @@ export function FlowEditorProvider({
     );
     if (!yes) return;
     try {
-      const res = await fetch(`/api/flows/${initialFlow.id}`, {
-        method: "DELETE",
-      });
-      if (!res.ok) throw new Error(`Delete failed: ${res.status}`);
-      router.push("/flows");
+      const { error } = await supabase
+        .from("flows")
+        .delete()
+        .eq("id", initialFlow.id);
+        
+      if (error) throw new Error(error.message ?? "Delete failed");
+      router.navigate({ to: "/fluxos" });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Delete failed";
       toast.error(msg);

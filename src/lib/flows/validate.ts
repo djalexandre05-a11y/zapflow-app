@@ -272,13 +272,13 @@ function validateNode(
       }
       // Caption cap mirrors Meta's interactive body cap; documented as a
       // hard limit in the WhatsApp Cloud API media-message reference.
-      if (cfg.caption && cfg.caption.length > INTERACTIVE_LIMITS.bodyMaxLength) {
+      if (cfg.caption && cfg.caption.length > INTERACTIVE_LIMITS.body.text) {
         issues.push({
           severity: "error",
           scope: "node",
           node_key: node.node_key,
           field: "caption",
-          message: `Caption exceeds ${INTERACTIVE_LIMITS.bodyMaxLength} chars (WhatsApp limit).`,
+          message: `Caption exceeds ${INTERACTIVE_LIMITS.body.text} chars (WhatsApp limit).`,
         });
       }
       if (!cfg.next_node_key) {
@@ -329,13 +329,13 @@ function validateNode(
           message: "Send-buttons needs at least one button.",
         });
       }
-      if (btns.length > INTERACTIVE_LIMITS.maxButtons) {
+      if (btns.length > INTERACTIVE_LIMITS.buttons) {
         issues.push({
           severity: "error",
           scope: "node",
           node_key: node.node_key,
           field: "buttons",
-          message: `WhatsApp allows at most ${INTERACTIVE_LIMITS.maxButtons} buttons per message.`,
+          message: `WhatsApp allows at most ${INTERACTIVE_LIMITS.buttons} buttons per message.`,
         });
       }
       const seenIds = new Set<string>();
@@ -368,13 +368,13 @@ function validateNode(
             field: `${field}.title`,
             message: `Button ${i + 1} needs a title.`,
           });
-        } else if (b.title.length > INTERACTIVE_LIMITS.buttonTitleMaxLength) {
+        } else if (b.title.length > INTERACTIVE_LIMITS.list.buttonLabel) {
           issues.push({
             severity: "error",
             scope: "node",
             node_key: node.node_key,
             field: `${field}.title`,
-            message: `Button ${i + 1} title is over ${INTERACTIVE_LIMITS.buttonTitleMaxLength} chars (WhatsApp limit).`,
+            message: `Button ${i + 1} title is over ${INTERACTIVE_LIMITS.list.buttonLabel} chars (WhatsApp limit).`,
           });
         }
 
@@ -445,13 +445,13 @@ function validateNode(
           message: "Send-list needs at least one row.",
         });
       }
-      if (totalRows > INTERACTIVE_LIMITS.maxListRowsTotal) {
+      if (totalRows > 10) { // WhatsApp limit is 10 items total
         issues.push({
           severity: "error",
           scope: "node",
           node_key: node.node_key,
           field: "sections",
-          message: `Send-list allows at most ${INTERACTIVE_LIMITS.maxListRowsTotal} rows total across sections.`,
+          message: `Send-list allows at most 10 rows total across sections.`,
         });
       }
       const seenIds = new Set<string>();
@@ -487,27 +487,27 @@ function validateNode(
               message: `Row ${ri + 1} needs a title.`,
             });
           } else if (
-            row.title.length > INTERACTIVE_LIMITS.listRowTitleMaxLength
+            row.title.length > INTERACTIVE_LIMITS.list.itemTitle
           ) {
             issues.push({
               severity: "error",
               scope: "node",
               node_key: node.node_key,
               field: `${field}.title`,
-              message: `Row ${ri + 1} title exceeds ${INTERACTIVE_LIMITS.listRowTitleMaxLength} chars.`,
+              message: `Row ${ri + 1} title exceeds ${INTERACTIVE_LIMITS.list.itemTitle} chars.`,
             });
           }
           if (
             row.description &&
             row.description.length >
-              INTERACTIVE_LIMITS.listRowDescriptionMaxLength
+              INTERACTIVE_LIMITS.list.itemDescription
           ) {
             issues.push({
               severity: "error",
               scope: "node",
               node_key: node.node_key,
               field: `${field}.description`,
-              message: `Row ${ri + 1} description exceeds ${INTERACTIVE_LIMITS.listRowDescriptionMaxLength} chars.`,
+              message: `Row ${ri + 1} description exceeds ${INTERACTIVE_LIMITS.list.itemDescription} chars.`,
             });
           }
           if (!row.next_node_key) {
