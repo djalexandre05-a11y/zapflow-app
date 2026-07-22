@@ -53,8 +53,9 @@ export function useAccounts() {
     fetchAccounts();
 
     // Escutar mudanças no banco para tempo real (opcional)
+    const channelId = `user_accounts_changes_${Math.random()}`;
     const sub = supabase
-      .channel("user_accounts_changes")
+      .channel(channelId)
       .on("postgres_changes", { event: "*", schema: "public", table: "user_accounts", filter: `user_id=eq.${user.id}` }, () => {
         fetchAccounts();
       })

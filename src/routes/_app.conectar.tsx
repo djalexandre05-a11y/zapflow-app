@@ -87,20 +87,20 @@ function NumbersPage() {
                       <Smartphone className="h-5 w-5" />
                     </span>
                     <div>
-                      <div className="font-semibold text-slate-100">{n.displayName || n.name}</div>
-                      {n.phone && <div className="text-xs text-slate-500">{n.phone}</div>}
+                      <div className="font-semibold text-slate-100">{(n as any).displayName || n.name}</div>
+                      {(n as any).phone && <div className="text-xs text-slate-500">{(n as any).phone}</div>}
                     </div>
                   </div>
                 </td>
                 <td className="px-5 py-4">
                   <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-xs font-medium text-emerald-400">
-                    <CheckCircle2 className="h-3 w-3" /> {n.status || "Active"}
+                    <CheckCircle2 className="h-3 w-3" /> {(n as any).status || "Active"}
                   </span>
                 </td>
-                <td className="px-5 py-4 font-medium text-emerald-400">{n.quality || "GREEN"}</td>
+                <td className="px-5 py-4 font-medium text-emerald-400">{(n as any).quality || "GREEN"}</td>
                 <td className="px-5 py-4">
                   <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-slate-200">
-                    {n.messagingLimit || "250"}
+                    {(n as any).messagingLimit || "250"}
                   </span>
                 </td>
                 <td className="px-5 py-4">
