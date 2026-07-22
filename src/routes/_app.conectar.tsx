@@ -161,13 +161,12 @@ function ConnectModal({ initial, onClose, onDone }: { initial: Num | null; onClo
     mutationFn: async () => connect({ data: { apiKey: "", profileId: "", accessToken, wabaId, phoneNumberId } }),
     onSuccess: async (res: any) => {
       const acc = res?.account || {};
-      const id = initial?.id || acc.id || phoneNumberId;
+      const accountId = initial?.id || acc.id; // Must be a UUID if provided, else let DB generate it
       
       // Update the previous active account to false, and this new one to true
       await supabase.from("user_accounts").update({ active: false }).eq("user_id", user?.id);
 
-      const { error } = await supabase.from("user_accounts").upsert({
-        id,
+      const payload: any = {
         user_id: user?.id,
         name: acc.name || `WhatsApp ${phoneNumberId}`,
         provider: "meta",
@@ -175,9 +174,16 @@ function ConnectModal({ initial, onClose, onDone }: { initial: Num | null; onClo
         waba_id: wabaId,
         phone_number_id: phoneNumberId,
         active: true,
-      });
+      };
+
+      if (accountId) {
+        payload.id = accountId;
+      }
+
+      const { error, data: errorData } = await supabase.from("user_accounts").upsert(payload).select();
 
       if (error) {
+        console.error("Erro no Supabase:", error);
         toast.error("Erro ao salvar conta no banco.");
         return;
       }
