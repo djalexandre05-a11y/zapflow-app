@@ -1,4 +1,4 @@
-import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, useRouterState, useNavigate } from "@tanstack/react-router";
 import {
   MessageCircle,
   LayoutDashboard,
@@ -15,6 +15,8 @@ import {
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { useTheme } from "@/lib/theme";
+import { useAuth } from "@/components/auth-provider";
+import { LogOut } from "lucide-react";
 
 export const Route = createFileRoute("/_app")({
   component: AppLayout,
@@ -37,9 +39,17 @@ const NAV: NavItem[] = [
 
 function AppLayout() {
   const path = useRouterState({ select: (s) => s.location.pathname });
+  const navigate = useNavigate();
   const { theme, toggle } = useTheme();
   const [connected, setConnected] = useState(false);
   const [activeName, setActiveName] = useState<string>("");
+  const { user, isLoading, signOut } = useAuth();
+
+  useEffect(() => {
+    if (!isLoading && !user) {
+      navigate({ to: "/login" });
+    }
+  }, [user, isLoading, navigate]);
 
   useEffect(() => {
     const check = () => {
@@ -55,6 +65,10 @@ function AppLayout() {
     const i = setInterval(check, 1500);
     return () => { window.removeEventListener("storage", check); clearInterval(i); };
   }, []);
+
+  if (isLoading || !user) {
+    return <div className="flex h-screen items-center justify-center bg-[#0b1416] text-slate-400">Carregando...</div>;
+  }
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-[#0b1416] text-slate-100">
@@ -94,7 +108,14 @@ function AppLayout() {
             {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             {theme === "dark" ? "Modo claro" : "Modo escuro"}
           </button>
-          <div className="px-3 text-xs text-slate-500">
+          <button
+            onClick={() => signOut()}
+            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-rose-400 hover:bg-white/5"
+          >
+            <LogOut className="h-4 w-4" />
+            Sair
+          </button>
+          <div className="px-3 pt-2 text-xs text-slate-500">
             <div className="flex items-center gap-2">
               <span className={`h-2 w-2 rounded-full ${connected ? "bg-emerald-400 shadow-[0_0_8px_theme(colors.emerald.400)]" : "bg-slate-500"}`} />
               <span className={connected ? "text-slate-300" : "text-slate-500"}>
