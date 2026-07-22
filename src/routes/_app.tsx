@@ -35,7 +35,7 @@ const NAV: NavItem[] = [
   { to: "/broadcasts", label: "Broadcasts", icon: <Radio className="h-4 w-4" /> },
   { to: "/grupos", label: "Grupos", icon: <UsersRound className="h-4 w-4" /> },
   { to: "/respostas", label: "Respostas", icon: <Zap className="h-4 w-4" /> },
-  { to: "/fluxos", label: "Fluxos (Robôs)", icon: <Network className="h-4 w-4" /> },
+  { to: "/fluxos", label: "Fluxos", icon: <Network className="h-4 w-4" /> },
   { to: "/config", label: "Configuração", icon: <Settings className="h-4 w-4" /> },
 ];
 

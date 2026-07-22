@@ -1,8 +1,9 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/components/auth-provider";
 
 export const Route = createFileRoute("/_app/fluxos")({
   component: FluxosPage,
@@ -18,6 +19,29 @@ function FluxosPage() {
     },
   });
 
+  const { user } = useAuth();
+  const navigate = useNavigate();
+
+  const { mutate: createFlow, isPending: isCreating } = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase
+        .from("flows")
+        .insert({
+          name: "Novo Fluxo",
+          trigger_type: "keyword",
+          trigger_config: {},
+          user_id: user?.id,
+        })
+        .select("id")
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      navigate({ to: "/fluxos/$flowId", params: { flowId: data.id } });
+    },
+  });
+
   return (
     <div className="flex-1 overflow-auto bg-[#0b1416] p-6">
       <div className="mb-6 flex items-center justify-between">
@@ -25,8 +49,12 @@ function FluxosPage() {
           <h1 className="text-2xl font-bold text-white">Fluxos de Automação</h1>
           <p className="text-sm text-slate-400">Crie robôs visuais de atendimento</p>
         </div>
-        <Button className="bg-emerald-500 text-black hover:bg-emerald-400">
-          <Plus className="mr-2 h-4 w-4" /> Novo Fluxo
+        <Button 
+          className="bg-emerald-500 text-black hover:bg-emerald-400"
+          onClick={() => createFlow()}
+          disabled={isCreating}
+        >
+          <Plus className="mr-2 h-4 w-4" /> {isCreating ? "Criando..." : "Novo Fluxo"}
         </Button>
       </div>
 
