@@ -16,11 +16,11 @@ import type { ZapAccount } from "@/lib/account";
 import {
   Dialog,
   DialogContent,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 type Msg = {
   id: string;
@@ -178,6 +178,18 @@ export function ChatMeta({ account }: { account: ZapAccount }) {
     setNewOpen(false); setNewPhone(""); setNewName("");
   };
 
+  const startContactConv = (c: { phone: string, name: string }) => {
+    const phone = c.phone.replace(/\D/g, "");
+    if (!phone) return;
+    if (convs.some((conv) => conv.id === phone)) {
+      setSelectedId(phone); setNewOpen(false); return;
+    }
+    const now = new Date().toISOString();
+    setConvs((prev) => [{ id: phone, name: c.name || phone, messages: [], updatedAt: now, unread: 0 }, ...prev]);
+    setSelectedId(phone);
+    setNewOpen(false);
+  };
+
   const sendMut = useMutation({
     mutationFn: async () => {
       if (!selected) throw new Error("Selecione uma conversa");
@@ -283,44 +295,51 @@ export function ChatMeta({ account }: { account: ZapAccount }) {
                 <Plus className="h-4 w-4" /> Nova conversa
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="max-w-md">
               <DialogHeader><DialogTitle>Iniciar conversa</DialogTitle></DialogHeader>
-              <div className="space-y-3">
-                <div>
-                  <label className="mb-1 block text-xs text-slate-400">Número (com DDI, ex: 5521999998888)</label>
-                  <Input value={newPhone} onChange={(e) => setNewPhone(e.target.value)} placeholder="5521999998888" />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs text-slate-400">Nome (opcional)</label>
-                  <Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="João" />
-                </div>
-                {contacts.length > 0 && (
-                  <div>
-                    <Select onValueChange={(val) => {
-                      const c = contacts.find(x => x.id === val);
-                      if (c) {
-                        setNewPhone(c.phone);
-                        setNewName(c.name);
-                      }
-                    }}>
-                      <SelectTrigger className="h-11 border-white/10 bg-[#0b1416]">
-                        <SelectValue placeholder="+ Escolher contato salvo..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {contacts.map(c => (
-                          <SelectItem key={c.id} value={c.id}>{c.name} ({c.phone})</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+              
+              <Tabs defaultValue="manual" className="w-full">
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="manual">Digitar Número</TabsTrigger>
+                  <TabsTrigger value="contacts">Meus Contatos</TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="manual" className="space-y-4 pt-4">
+                  <div className="space-y-3">
+                    <div>
+                      <label className="mb-1 block text-xs text-slate-400">Número (com DDI, ex: 5521999998888)</label>
+                      <Input value={newPhone} onChange={(e) => setNewPhone(e.target.value)} placeholder="5521999998888" className="border-white/10 bg-[#0b1416]" />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs text-slate-400">Nome (opcional)</label>
+                      <Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="João" className="border-white/10 bg-[#0b1416]" />
+                    </div>
                   </div>
-                )}
-                <p className="text-xs text-slate-500">
-                  Fora da janela de 24h você só pode enviar um <b>template aprovado</b>. Após a resposta do contato, o campo de texto libera.
-                </p>
+                  <Button onClick={createConv} className="mt-2 w-full bg-emerald-500 text-[#0b1416] hover:bg-emerald-400">Iniciar</Button>
+                </TabsContent>
+
+                <TabsContent value="contacts" className="pt-4">
+                  {contacts.length === 0 ? (
+                    <div className="p-4 text-center text-sm text-slate-500">Nenhum contato salvo ainda.</div>
+                  ) : (
+                    <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2">
+                      {contacts.map(c => (
+                        <div key={c.id} className="flex items-center justify-between rounded-lg border border-white/5 bg-[#0f1b1e] p-3 hover:bg-white/5 cursor-pointer" onClick={() => startContactConv(c)}>
+                          <div>
+                            <div className="text-sm font-semibold text-slate-200">{c.name}</div>
+                            <div className="text-xs text-slate-400">{c.phone}</div>
+                          </div>
+                          <Button variant="ghost" size="sm" className="h-8 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10">Conversar</Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </TabsContent>
+              </Tabs>
+              
+              <div className="mt-2 text-center text-xs text-slate-500">
+                Fora da janela de 24h você só pode enviar um <b>template aprovado</b>.
               </div>
-              <DialogFooter>
-                <Button onClick={createConv} className="bg-emerald-500 text-[#0b1416] hover:bg-emerald-400">Criar</Button>
-              </DialogFooter>
             </DialogContent>
           </Dialog>
         }
