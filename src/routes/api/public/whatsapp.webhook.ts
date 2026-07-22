@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { dispatchInboundToFlows } from "@/lib/flows/engine";
 
 // Handles Meta WhatsApp Cloud API webhook: GET verify + POST message delivery.
 export const Route = createFileRoute("/api/public/whatsapp/webhook")({
@@ -77,6 +78,14 @@ export const Route = createFileRoute("/api/public/whatsapp/webhook")({
           if (rows.length) {
             const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
             await supabaseAdmin.from("wa_incoming").upsert(rows, { onConflict: "wa_message_id", ignoreDuplicates: true });
+            
+            // Call Flow Engine
+            const metaToken = process.env.META_ACCESS_TOKEN || "";
+            for (const row of rows) {
+              if (row.message_text && !row.message_text.startsWith("[ERRO")) {
+                await dispatchInboundToFlows(row.from_number, row.message_text, metaToken, row.phone_number_id);
+              }
+            }
           }
           return new Response("ok", { status: 200 });
         } catch (e) {

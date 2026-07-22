@@ -18,9 +18,11 @@ import { Route as AppConectarRouteImport } from './routes/_app.conectar'
 import { Route as AppConfigRouteImport } from './routes/_app.config'
 import { Route as AppContatosRouteImport } from './routes/_app.contatos'
 import { Route as AppDisparosRouteImport } from './routes/_app.disparos'
+import { Route as AppFluxosRouteImport } from './routes/_app.fluxos'
 import { Route as AppGruposRouteImport } from './routes/_app.grupos'
 import { Route as AppRespostasRouteImport } from './routes/_app.respostas'
 import { Route as AppTemplatesRouteImport } from './routes/_app.templates'
+import { Route as AppFluxosFlowIdRouteImport } from './routes/_app.fluxos.$flowId'
 import { Route as ApiPublicWhatsappWebhookRouteImport } from './routes/api/public/whatsapp.webhook'
 
 const AppRoute = AppRouteImport.update({
@@ -67,6 +69,11 @@ const AppDisparosRoute = AppDisparosRouteImport.update({
   path: '/disparos',
   getParentRoute: () => AppRoute,
 } as any)
+const AppFluxosRoute = AppFluxosRouteImport.update({
+  id: '/fluxos',
+  path: '/fluxos',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppGruposRoute = AppGruposRouteImport.update({
   id: '/grupos',
   path: '/grupos',
@@ -81,6 +88,11 @@ const AppTemplatesRoute = AppTemplatesRouteImport.update({
   id: '/templates',
   path: '/templates',
   getParentRoute: () => AppRoute,
+} as any)
+const AppFluxosFlowIdRoute = AppFluxosFlowIdRouteImport.update({
+  id: '/$flowId',
+  path: '/$flowId',
+  getParentRoute: () => AppFluxosRoute,
 } as any)
 const ApiPublicWhatsappWebhookRoute =
   ApiPublicWhatsappWebhookRouteImport.update({
@@ -98,9 +110,11 @@ export interface FileRoutesByFullPath {
   '/config': typeof AppConfigRoute
   '/contatos': typeof AppContatosRoute
   '/disparos': typeof AppDisparosRoute
+  '/fluxos': typeof AppFluxosRouteWithChildren
   '/grupos': typeof AppGruposRoute
   '/respostas': typeof AppRespostasRoute
   '/templates': typeof AppTemplatesRoute
+  '/fluxos/$flowId': typeof AppFluxosFlowIdRoute
   '/api/public/whatsapp/webhook': typeof ApiPublicWhatsappWebhookRoute
 }
 export interface FileRoutesByTo {
@@ -111,10 +125,12 @@ export interface FileRoutesByTo {
   '/config': typeof AppConfigRoute
   '/contatos': typeof AppContatosRoute
   '/disparos': typeof AppDisparosRoute
+  '/fluxos': typeof AppFluxosRouteWithChildren
   '/grupos': typeof AppGruposRoute
   '/respostas': typeof AppRespostasRoute
   '/templates': typeof AppTemplatesRoute
   '/': typeof AppIndexRoute
+  '/fluxos/$flowId': typeof AppFluxosFlowIdRoute
   '/api/public/whatsapp/webhook': typeof ApiPublicWhatsappWebhookRoute
 }
 export interface FileRoutesById {
@@ -127,10 +143,12 @@ export interface FileRoutesById {
   '/_app/config': typeof AppConfigRoute
   '/_app/contatos': typeof AppContatosRoute
   '/_app/disparos': typeof AppDisparosRoute
+  '/_app/fluxos': typeof AppFluxosRouteWithChildren
   '/_app/grupos': typeof AppGruposRoute
   '/_app/respostas': typeof AppRespostasRoute
   '/_app/templates': typeof AppTemplatesRoute
   '/_app/': typeof AppIndexRoute
+  '/_app/fluxos/$flowId': typeof AppFluxosFlowIdRoute
   '/api/public/whatsapp/webhook': typeof ApiPublicWhatsappWebhookRoute
 }
 export interface FileRouteTypes {
@@ -144,9 +162,11 @@ export interface FileRouteTypes {
     | '/config'
     | '/contatos'
     | '/disparos'
+    | '/fluxos'
     | '/grupos'
     | '/respostas'
     | '/templates'
+    | '/fluxos/$flowId'
     | '/api/public/whatsapp/webhook'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -157,10 +177,12 @@ export interface FileRouteTypes {
     | '/config'
     | '/contatos'
     | '/disparos'
+    | '/fluxos'
     | '/grupos'
     | '/respostas'
     | '/templates'
     | '/'
+    | '/fluxos/$flowId'
     | '/api/public/whatsapp/webhook'
   id:
     | '__root__'
@@ -172,10 +194,12 @@ export interface FileRouteTypes {
     | '/_app/config'
     | '/_app/contatos'
     | '/_app/disparos'
+    | '/_app/fluxos'
     | '/_app/grupos'
     | '/_app/respostas'
     | '/_app/templates'
     | '/_app/'
+    | '/_app/fluxos/$flowId'
     | '/api/public/whatsapp/webhook'
   fileRoutesById: FileRoutesById
 }
@@ -250,6 +274,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppDisparosRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/fluxos': {
+      id: '/_app/fluxos'
+      path: '/fluxos'
+      fullPath: '/fluxos'
+      preLoaderRoute: typeof AppFluxosRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/grupos': {
       id: '/_app/grupos'
       path: '/grupos'
@@ -271,6 +302,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppTemplatesRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/fluxos/$flowId': {
+      id: '/_app/fluxos/$flowId'
+      path: '/$flowId'
+      fullPath: '/fluxos/$flowId'
+      preLoaderRoute: typeof AppFluxosFlowIdRouteImport
+      parentRoute: typeof AppFluxosRoute
+    }
     '/api/public/whatsapp/webhook': {
       id: '/api/public/whatsapp/webhook'
       path: '/api/public/whatsapp/webhook'
@@ -281,6 +319,18 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AppFluxosRouteChildren {
+  AppFluxosFlowIdRoute: typeof AppFluxosFlowIdRoute
+}
+
+const AppFluxosRouteChildren: AppFluxosRouteChildren = {
+  AppFluxosFlowIdRoute: AppFluxosFlowIdRoute,
+}
+
+const AppFluxosRouteWithChildren = AppFluxosRoute._addFileChildren(
+  AppFluxosRouteChildren,
+)
+
 interface AppRouteChildren {
   AppBroadcastsRoute: typeof AppBroadcastsRoute
   AppChatRoute: typeof AppChatRoute
@@ -288,6 +338,7 @@ interface AppRouteChildren {
   AppConfigRoute: typeof AppConfigRoute
   AppContatosRoute: typeof AppContatosRoute
   AppDisparosRoute: typeof AppDisparosRoute
+  AppFluxosRoute: typeof AppFluxosRouteWithChildren
   AppGruposRoute: typeof AppGruposRoute
   AppRespostasRoute: typeof AppRespostasRoute
   AppTemplatesRoute: typeof AppTemplatesRoute
@@ -301,6 +352,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppConfigRoute: AppConfigRoute,
   AppContatosRoute: AppContatosRoute,
   AppDisparosRoute: AppDisparosRoute,
+  AppFluxosRoute: AppFluxosRouteWithChildren,
   AppGruposRoute: AppGruposRoute,
   AppRespostasRoute: AppRespostasRoute,
   AppTemplatesRoute: AppTemplatesRoute,
