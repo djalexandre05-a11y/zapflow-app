@@ -444,7 +444,13 @@ export function ChatMeta({ account }: { account: ZapAccount }) {
                 ) : (
                   <>
                     <div className="flex gap-2">
-                      <input type="file" ref={fileRef} className="hidden" onChange={handleFileChange} />
+                      <input 
+                        type="file" 
+                        ref={fileRef} 
+                        className="hidden" 
+                        onChange={handleFileChange} 
+                        accept=".jpg,.jpeg,.png,.gif,.webp,.mp4,.mp3,.pdf,.doc,.docx,.xls,.xlsx,.txt"
+                      />
                       <Button onClick={() => fileRef.current?.click()} disabled={mediaMut.isPending} className="border border-white/10 bg-[#0b1416] px-3 text-slate-400 hover:bg-white/5 hover:text-white" title="Anexar arquivo">
                         {mediaMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}
                       </Button>
