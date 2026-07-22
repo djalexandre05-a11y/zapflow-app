@@ -13,7 +13,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PageHeader, Card } from "@/components/app-ui";
 import { ApiGate } from "@/components/api-gate";
-import { DisparosMeta } from "@/components/disparos-meta";
 import { useActiveAccount } from "@/lib/account";
 
 export const Route = createFileRoute("/_app/disparos")({

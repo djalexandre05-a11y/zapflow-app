@@ -136,7 +136,7 @@ function ContatosPage() {
           name: nm || digits,
           phone: digits,
           tags: tagsRaw.split(/[|,;/]/).map((t) => t.trim()).filter(Boolean),
-        });
+        } as any);
       }
 
       if (!parsed.length) { toast.error("Nenhum contato encontrado no CSV"); return; }

@@ -1,7 +1,9 @@
 import { createServerFn } from "@tanstack/react-start";
 
-export const generateDraft = createServerFn("POST", async (payload: { apiKey: string, systemPrompt: string, history: { role: string, content: string }[] }) => {
-  const { apiKey, systemPrompt, history } = payload;
+export const generateDraft = createServerFn({ method: "POST" })
+  .validator((d: { apiKey: string, systemPrompt: string, history: { role: string, content: string }[] }) => d)
+  .handler(async ({ data }) => {
+  const { apiKey, systemPrompt, history } = data;
   
   if (!apiKey) throw new Error("Chave da OpenAI não fornecida.");
 
