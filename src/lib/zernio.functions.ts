@@ -281,7 +281,7 @@ export const uploadMediaDirect = createServerFn({ method: "POST" })
     const form = new FormData();
     form.append("file", blob, data.filename);
     form.append("contentType", data.contentType);
-    const res = await fetch(`${BASE}/messages/upload-media-direct`, {
+    const res = await fetch(`${BASE}/media/upload-direct`, {
       method: "POST",
       headers: { Authorization: `Bearer ${assertKey(data.apiKey)}` },
       body: form,
