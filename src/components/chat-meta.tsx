@@ -162,7 +162,10 @@ export function ChatMeta({ account }: { account: ZapAccount }) {
     const list: any[] = raw?.data ?? [];
     return list
       .filter((t: any) => String(t.status || "").toUpperCase() === "APPROVED")
-      .map((t: any) => ({ name: t.name as string, language: t.language as string }));
+      .map((t: any) => {
+        const body = t.components?.find((c: any) => c.type === "BODY")?.text || `[template] ${t.name}`;
+        return { name: t.name as string, language: t.language as string, body };
+      });
   }, [tplQ.data]);
 
   const selected = convs.find((c) => c.id === selectedId) || null;
@@ -293,7 +296,7 @@ export function ChatMeta({ account }: { account: ZapAccount }) {
       updateConv(selected!.id, (c) => ({
         ...c,
         updatedAt: now,
-        messages: [...c.messages, { id: `${Date.now()}`, direction: "outgoing", message: `[template] ${t.name}`, createdAt: now }],
+        messages: [...c.messages, { id: `${Date.now()}`, direction: "outgoing", message: t.body, createdAt: now }],
       }));
       setTplPick("");
       toast.success("Template enviado");
