@@ -65,12 +65,12 @@ export function ChatMeta({ account }: { account: ZapAccount }) {
   const [newOpen, setNewOpen] = useState(false);
   const [newPhone, setNewPhone] = useState("");
   const [newName, setNewName] = useState("");
-  const [contacts, setContacts] = useState<{id: string, name: string, phone: string}[]>([]);
+  const [contacts, setContacts] = useState<{ id: string, name: string, phone: string }[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    try { setContacts(JSON.parse(localStorage.getItem("zapflow.contacts") || "[]")); } catch {}
+    try { setContacts(JSON.parse(localStorage.getItem("zapflow.contacts") || "[]")); } catch { }
   }, []);
 
   useEffect(() => { setConvs(loadConvs(phoneNumberId)); setSelectedId(null); }, [phoneNumberId]);
@@ -201,7 +201,7 @@ export function ChatMeta({ account }: { account: ZapAccount }) {
   const mediaMut = useMutation({
     mutationFn: async (file: File) => {
       if (!selected) throw new Error("Selecione uma conversa");
-      
+
       const formData = new FormData();
       formData.append("accessToken", accessToken);
       formData.append("phoneNumberId", phoneNumberId);
@@ -209,7 +209,7 @@ export function ChatMeta({ account }: { account: ZapAccount }) {
       formData.append("file", file);
 
       await sendMediaFn({ data: formData as any });
-      
+
       const now = new Date().toISOString();
       updateConv(selected.id, (c) => ({
         ...c,
@@ -450,11 +450,11 @@ export function ChatMeta({ account }: { account: ZapAccount }) {
                 ) : (
                   <>
                     <div className="flex gap-2">
-                      <input 
-                        type="file" 
-                        ref={fileRef} 
-                        className="hidden" 
-                        onChange={handleFileChange} 
+                      <input
+                        type="file"
+                        ref={fileRef}
+                        className="hidden"
+                        onChange={handleFileChange}
                         accept=".jpg,.jpeg,.png,.gif,.webp,.mp4,.mp3,.pdf,.doc,.docx,.xls,.xlsx,.txt"
                       />
                       <Button onClick={() => fileRef.current?.click()} disabled={mediaMut.isPending} className="border border-white/10 bg-[#0b1416] px-3 text-slate-400 hover:bg-white/5 hover:text-white" title="Anexar arquivo">
@@ -531,7 +531,7 @@ function MediaMessage({ text, accessToken }: { text: string; accessToken: string
         });
         if (!fileRes.ok) throw new Error("Erro ao baixar o arquivo");
         const blob = await fileRes.blob();
-        
+
         if (!alive) return;
         setBlobUrl(URL.createObjectURL(blob));
       } catch (err: any) {
