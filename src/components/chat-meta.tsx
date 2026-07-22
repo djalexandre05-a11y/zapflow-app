@@ -349,15 +349,56 @@ export function ChatMeta({ account }: { account: ZapAccount }) {
         {/* Lista */}
         <div className="flex min-h-0 flex-col border-r border-white/5 bg-[#0f1b1e]">
           <div className="space-y-2 border-b border-white/5 p-3">
+            <div className="flex gap-2">
+              <Input
+                value={newPhone}
+                onChange={(e) => setNewPhone(e.target.value)}
+                placeholder="Digite o número"
+                className="h-9 flex-1 border-white/10 bg-[#0b1416] text-sm"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") createConv();
+                }}
+              />
+              <Button onClick={() => createConv()} className="h-9 bg-emerald-500 px-4 font-semibold text-[#0b1416] hover:bg-emerald-400">
+                Abrir
+              </Button>
+              <button
+                onClick={() => { localStorage.removeItem(`zapflow.meta.since.${phoneNumberId}`); window.location.reload(); }}
+                className="grid h-9 w-9 shrink-0 place-items-center rounded border border-white/10 bg-[#0b1416] text-slate-400 transition-colors hover:bg-white/5 hover:text-white"
+                title="Recarregar"
+              >
+                <RefreshCw className={`h-4 w-4 ${tplQ.isFetching ? "animate-spin" : ""}`} />
+              </button>
+            </div>
+            
             <div className="relative">
               <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-500" />
-              <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar…" className="h-9 border-white/10 bg-[#0b1416] pl-8 text-sm" />
+              <Input 
+                value={search} 
+                onChange={(e) => setSearch(e.target.value)} 
+                placeholder="Buscar conversa..." 
+                className="h-9 border-white/10 bg-[#0b1416] pl-8 text-sm" 
+              />
             </div>
-            <div className="flex items-center justify-between text-xs text-slate-400">
-              <span>{filtered.length} conversas</span>
-              <button onClick={() => { localStorage.removeItem(`zapflow.meta.since.${phoneNumberId}`); window.location.reload(); }} className="rounded p-1 hover:bg-white/5" title="Recarregar mensagens e templates">
-                <RefreshCw className={`h-3.5 w-3.5 ${tplQ.isFetching ? "animate-spin" : ""}`} />
-              </button>
+
+            {contacts.length > 0 && (
+              <Select onValueChange={(val) => {
+                const c = contacts.find(x => x.id === val);
+                if (c) startContactConv(c);
+              }}>
+                <SelectTrigger className="h-9 border-white/10 bg-[#0b1416] text-sm text-slate-300">
+                  <SelectValue placeholder="+ Escolher contato salvo..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {contacts.map(c => (
+                    <SelectItem key={c.id} value={c.id}>{c.name} · {c.phone}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+
+            <div className="text-[11px] text-slate-500">
+              {filtered.length} conversa(s) ativa(s)
             </div>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto">
