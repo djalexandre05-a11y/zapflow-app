@@ -135,7 +135,7 @@ function ContatosPage() {
           user_id: user?.id,
           name: nm || digits,
           phone: digits,
-          tags: tagsRaw.split(/[|,;/]/).map((t) => t.trim()).filter(Boolean),
+          tags: tagsRaw.split(/(?:\||,|;|:::|\/)+/).map((t) => t.replace(/^\*\s*/, "").trim()).filter(Boolean),
         } as any);
       }
 
