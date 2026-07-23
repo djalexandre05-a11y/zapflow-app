@@ -32,7 +32,7 @@ function LoginPage() {
     }
     
     setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
@@ -40,7 +40,11 @@ function LoginPage() {
 
     if (error) {
       toast.error("Credenciais inválidas ou erro no servidor");
-    } else {
+    } else if (data.user) {
+      const token = crypto.randomUUID();
+      await supabase.from('user_sessions').upsert({ user_id: data.user.id, session_token: token });
+      localStorage.setItem('zapflow.session', token);
+
       toast.success("Login efetuado com sucesso!");
       navigate({ to: "/" });
     }

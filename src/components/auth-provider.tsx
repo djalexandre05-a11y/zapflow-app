@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
+import { toast } from "sonner";
 
 type AuthContextType = {
   session: Session | null;
@@ -33,11 +34,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsLoading(false);
     });
 
-    return () => subscription.unsubscribe();
-  }, []);
+    let interval: number;
+
+    const checkSession = async (currentUser: User) => {
+      const localToken = localStorage.getItem('zapflow.session');
+      if (!localToken) return;
+      
+      const { data } = await supabase.from('user_sessions').select('session_token').eq('user_id', currentUser.id).single();
+      if (data && data.session_token !== localToken) {
+        toast.error("Sua conta foi acessada em outro dispositivo. Você foi desconectado.");
+        await supabase.auth.signOut();
+        localStorage.removeItem('zapflow.session');
+        window.location.href = '/login';
+      }
+    };
+
+    if (user) {
+      checkSession(user);
+      interval = window.setInterval(() => checkSession(user), 30000);
+    }
+
+    return () => {
+      subscription.unsubscribe();
+      if (interval) window.clearInterval(interval);
+    };
+  }, [user]);
 
   const signOut = async () => {
     await supabase.auth.signOut();
+    localStorage.removeItem('zapflow.session');
   };
 
   const value = {
