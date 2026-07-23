@@ -7,7 +7,7 @@ import { Trash2, Users, Loader2, CloudUpload, CloudDownload, RefreshCw } from "l
 import { useAuth } from "@/components/auth-provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { PageHeader } from "@/components/page-header";
+import { PageHeader } from "@/components/app-ui";
 import { 
   getWorkspaces, 
   createWorkspace, 
