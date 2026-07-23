@@ -2,7 +2,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Loader2, Send, Search, MessageCircle, Plus, RefreshCw, Paperclip, Wand2, Mic, Trash2, Image as ImageIcon, Video, File as FileIcon, X } from "lucide-react";
+import { Loader2, Send, Search, MessageCircle, Plus, RefreshCw, Paperclip, Wand2, Mic, Trash2 } from "lucide-react";
 
 import { metaSendText, metaSendTemplate, metaListTemplates, metaSendMedia, metaSendMediaById } from "@/lib/meta.functions";
 import { fetchIncomingMessages, deleteIncomingConversation } from "@/lib/incoming.functions";
@@ -80,16 +80,6 @@ export function ChatMeta({ account, allAccounts, onSwitchAccount }: { account: Z
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<number | null>(null);
-
-  // URL upload state
-  const [urlDialogOpen, setUrlDialogOpen] = useState(false);
-  const [mediaUrl, setMediaUrl] = useState("");
-  const [urlType, setUrlType] = useState<"image" | "video" | "audio" | "document">("image");
-
-  // Camera state
-  const [showCamera, setShowCamera] = useState(false);
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -245,94 +235,81 @@ export function ChatMeta({ account, allAccounts, onSwitchAccount }: { account: Z
     onError: (e: Error) => toast.error(e.message),
   });
 
-  // Função para enviar mídia a partir de um File
-  const sendMediaFile = async (file: File) => {
-    if (!selected) throw new Error("Selecione uma conversa");
-    
-    // Determinar o tipo correto
-    let type = "document";
-    if (file.type.startsWith("image/")) type = "image";
-    else if (file.type.startsWith("video/")) type = "video";
-    else if (file.type.startsWith("audio/")) type = "audio";
-    else if (file.type === "image/webp" || file.type === "image/gif") type = "sticker";
-
-    const formData = new FormData();
-    formData.append("messaging_product", "whatsapp");
-    formData.append("file", file, file.name);
-    formData.append("type", type);
-
-    const uploadRes = await fetch(`https://graph.facebook.com/v21.0/${phoneNumberId}/media`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-      body: formData,
-    });
-
-    const uploadBody = await uploadRes.json();
-    
-    if (!uploadRes.ok) {
-      throw new Error(`Upload falhou: ${uploadBody.error?.message || "Erro desconhecido"}`);
-    }
-
-    const mediaId = uploadBody.id;
-
-    const res: any = await sendMediaByIdFn({ 
-      data: { 
-        accessToken, 
-        phoneNumberId, 
-        to: selected.id, 
-        mediaId, 
-        type, 
-        filename: file.name 
-      } 
-    });
-
-    const now = new Date().toISOString();
-    const metaId = res?.messages?.[0]?.id || `${Date.now()}`;
-    
-    updateConv(selected.id, (c) => ({
-      ...c,
-      updatedAt: now,
-      messages: [...c.messages, { 
-        id: metaId, 
-        direction: "outgoing", 
-        message: `[${type}]|${mediaId}|${file.name}`, 
-        createdAt: now 
-      }],
-    }));
-  };
-
   const mediaMut = useMutation({
-    mutationFn: sendMediaFile,
+    mutationFn: async (file: File) => {
+      if (!selected) throw new Error("Selecione uma conversa");
+      
+      // Vercel tem limite de 4.5MB. Se o arquivo for menor que 4.2MB, enviamos SEMPRE pelo backend.
+      // O backend funcionou perfeitamente para todas as imagens desde o início.
+      const isSmallEnough = file.size < 4.2 * 1024 * 1024;
+      
+      let type = "document";
+      const ext = file.name.split('.').pop()?.toLowerCase() || '';
+      if (file.type.startsWith("image/") || ['png', 'jpg', 'jpeg', 'webp', 'gif'].includes(ext)) type = "image";
+      else if (file.type.startsWith("video/") || ['mp4', 'webm', 'mov'].includes(ext)) type = "video";
+      else if (file.type.startsWith("audio/") || ['mp3', 'ogg', 'wav'].includes(ext)) type = "audio";
+
+      if (!isSmallEnough) {
+        // Arquivos pesados (vídeos): Fazemos o upload direto pelo navegador 
+        // para contornar o limite de 4.5MB do Vercel.
+        const formData = new FormData();
+        formData.append("messaging_product", "whatsapp");
+        formData.append("file", file, file.name);
+
+        const uploadRes = await fetch(`https://graph.facebook.com/v21.0/${phoneNumberId}/media`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: formData,
+        });
+
+        const uploadBody = await uploadRes.json();
+        if (!uploadRes.ok) {
+          throw new Error(`Upload frontal falhou: ${uploadBody.error?.message || "Erro desconhecido"}`);
+        }
+
+        const mediaId = uploadBody.id;
+
+        const res: any = await sendMediaByIdFn({ 
+          data: { accessToken, phoneNumberId, to: selected.id, mediaId, type, filename: file.name } 
+        });
+
+        const now = new Date().toISOString();
+        const typeStr = res._type ? `[${res._type}]` : `[${type}]`;
+        const metaId = res?.messages?.[0]?.id || `${Date.now()}`;
+        
+        updateConv(selected.id, (c) => ({
+          ...c,
+          updatedAt: now,
+          messages: [...c.messages, { id: metaId, direction: "outgoing", message: `${typeStr}|${res._mediaId}|${file.name}`, createdAt: now }],
+        }));
+        return;
+      }
+
+      // Arquivos leves (fotos, áudios e vídeos curtos): Enviamos pelo backend.
+      // Esse é EXATAMENTE o código original que funcionava perfeito para imagens.
+      const formData = new FormData();
+      formData.append("accessToken", accessToken);
+      formData.append("phoneNumberId", phoneNumberId);
+      formData.append("to", selected.id);
+      formData.append("file", file);
+
+      const res: any = await sendMediaFn({ data: formData as any });
+
+      const now = new Date().toISOString();
+      const typeStr = res._type ? `[${res._type}]` : `[${type}]`;
+      const metaId = res?.messages?.[0]?.id || `${Date.now()}`;
+      
+      updateConv(selected.id, (c) => ({
+        ...c,
+        updatedAt: now,
+        messages: [...c.messages, { id: metaId, direction: "outgoing", message: `${typeStr}|${res._mediaId}|${file.name}`, createdAt: now }],
+      }));
+    },
     onSuccess: () => toast.success("Arquivo enviado"),
     onError: (e: Error) => toast.error(e.message),
   });
-
-  // Função para enviar mídia por URL
-  const sendMediaByUrl = async (url: string, type: string) => {
-    try {
-      const response = await fetch(url);
-      if (!response.ok) throw new Error("Erro ao baixar arquivo da URL");
-      
-      const blob = await response.blob();
-      const filename = url.split('/').pop() || 'arquivo';
-      
-      // Determinar extensão correta
-      let extension = '';
-      if (type === 'image') extension = '.jpg';
-      else if (type === 'video') extension = '.mp4';
-      else if (type === 'audio') extension = '.mp3';
-      else extension = '.pdf';
-      
-      const file = new File([blob], `arquivo${extension}`, { type: blob.type || 'application/octet-stream' });
-      await sendMediaFile(file);
-      setUrlDialogOpen(false);
-      setMediaUrl("");
-    } catch (error: any) {
-      toast.error("Erro ao enviar por URL: " + error.message);
-    }
-  };
 
   const draftMut = useMutation({
     mutationFn: async () => {
@@ -344,8 +321,9 @@ export function ChatMeta({ account, allAccounts, onSwitchAccount }: { account: Z
         throw new Error("Chave da OpenAI não configurada. Acesse Configurações.");
       }
 
+      // Grab last 10 messages for context
       const history = selected.messages.slice(-10).map(m => ({
-        role: m.direction,
+        role: m.direction, // "incoming" or "outgoing"
         content: m.message
       }));
 
@@ -389,8 +367,10 @@ export function ChatMeta({ account, allAccounts, onSwitchAccount }: { account: Z
 
       mediaRecorder.onstop = () => {
         if (audioChunksRef.current.length > 0) {
-          const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-          const file = new File([audioBlob], 'audio.webm', { type: 'audio/webm' });
+          // Meta API only accepts specific mime types. WebM is not supported, 
+          // so we fake it as mp4 which Meta's transcoder handles fine.
+          const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/mp4' });
+          const file = new File([audioBlob], 'audio.mp4', { type: 'audio/mp4' });
           mediaMut.mutate(file);
         }
         stream.getTracks().forEach((track) => track.stop());
@@ -445,67 +425,6 @@ export function ChatMeta({ account, allAccounts, onSwitchAccount }: { account: Z
     }
     if (fileRef.current) fileRef.current.value = "";
   };
-
-  // Função para iniciar a câmera
-  const startCamera = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: 'user' } 
-      });
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.play();
-      }
-      setShowCamera(true);
-    } catch (err) {
-      toast.error("Erro ao acessar a câmera. Verifique as permissões.");
-      console.error(err);
-    }
-  };
-
-  // Função para capturar foto
-  const capturePhoto = () => {
-    if (videoRef.current && canvasRef.current) {
-      const context = canvasRef.current.getContext('2d');
-      canvasRef.current.width = videoRef.current.videoWidth;
-      canvasRef.current.height = videoRef.current.videoHeight;
-      context?.drawImage(videoRef.current, 0, 0);
-      
-      canvasRef.current.toBlob((blob) => {
-        if (blob) {
-          const file = new File([blob], 'foto.jpg', { type: 'image/jpeg' });
-          mediaMut.mutate(file);
-          setShowCamera(false);
-          
-          // Parar a câmera
-          const stream = videoRef.current?.srcObject as MediaStream;
-          stream?.getTracks().forEach(track => track.stop());
-          toast.success("Foto capturada e enviada!");
-        }
-      }, 'image/jpeg');
-    }
-  };
-
-  // Efeito para colar imagens
-  useEffect(() => {
-    const handlePaste = (e: ClipboardEvent) => {
-      const items = e.clipboardData?.items;
-      if (!items || !selected) return;
-
-      for (const item of items) {
-        if (item.type.startsWith('image/')) {
-          const file = item.getAsFile();
-          if (file) {
-            mediaMut.mutate(file);
-            toast.success('Imagem colada!');
-          }
-        }
-      }
-    };
-
-    document.addEventListener('paste', handlePaste);
-    return () => document.removeEventListener('paste', handlePaste);
-  }, [selected, mediaMut]);
 
   const tplMut = useMutation({
     mutationFn: async () => {
@@ -705,7 +624,6 @@ export function ChatMeta({ account, allAccounts, onSwitchAccount }: { account: Z
                           if (msg.startsWith("[video]|")) return "🎥 Vídeo";
                           if (msg.startsWith("[audio]|")) return "🎵 Áudio";
                           if (msg.startsWith("[document]|")) return "📄 Documento";
-                          if (msg.startsWith("[sticker]|")) return "🎨 Sticker";
                           return msg;
                         })()}</span>
                       </div>
@@ -775,7 +693,7 @@ export function ChatMeta({ account, allAccounts, onSwitchAccount }: { account: Z
                     <div key={m.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
                       <div className={`max-w-[70%] rounded-2xl px-3 py-2 text-sm ${mine ? "bg-emerald-600/90 text-white" : "bg-[#1a2b2e] text-slate-100"}`}>
                         <div className="whitespace-pre-wrap break-words">
-                          {/^(?:\[image\]|\[video\]|\[audio\]|\[document\]|\[sticker\])\|/.test(m.message) ? (
+                          {/^(?:\[image\]|\[video\]|\[audio\]|\[document\])\|/.test(m.message) ? (
                             <MediaMessage text={m.message} accessToken={accessToken} />
                           ) : (
                             <span>{m.message}</span>
@@ -828,104 +746,45 @@ export function ChatMeta({ account, allAccounts, onSwitchAccount }: { account: Z
                         </Button>
                       </div>
                     ) : (
-                      <div className="flex flex-col gap-2">
-                        <div className="flex gap-2">
-                          <Button onClick={() => draftMut.mutate()} disabled={draftMut.isPending || !selected} className="border border-indigo-500/30 bg-indigo-500/10 px-3 text-indigo-400 hover:bg-indigo-500/20 hover:text-indigo-300" title="Rascunho Mágico com IA">
-                            {draftMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
+                      <div className="flex gap-2">
+                        <Button onClick={() => draftMut.mutate()} disabled={draftMut.isPending || !selected} className="border border-indigo-500/30 bg-indigo-500/10 px-3 text-indigo-400 hover:bg-indigo-500/20 hover:text-indigo-300" title="Rascunho Mágico com IA">
+                          {draftMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
+                        </Button>
+                        <input
+                          type="file"
+                          ref={fileRef}
+                          className="hidden"
+                          onChange={handleFileChange}
+                          accept=".jpg,.jpeg,.png,.gif,.webp,.mp4,.mp3,.pdf,.doc,.docx,.xls,.xlsx,.txt"
+                        />
+                        <Button onClick={() => fileRef.current?.click()} disabled={mediaMut.isPending} className="border border-white/10 bg-[#0b1416] px-3 text-slate-400 hover:bg-white/5 hover:text-white" title="Anexar arquivo">
+                          {mediaMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}
+                        </Button>
+                        <Textarea
+                          rows={2}
+                          value={reply}
+                          onChange={(e) => setReply(e.target.value)}
+                          placeholder="Escreva uma resposta…"
+                          className="min-h-[52px] border-white/10 bg-[#0b1416]"
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && !e.shiftKey) {
+                              e.preventDefault();
+                              if (reply.trim()) sendMut.mutate();
+                            }
+                          }}
+                        />
+                        {reply.trim() ? (
+                          <Button onClick={() => sendMut.mutate()} disabled={sendMut.isPending} className="bg-emerald-500 px-4 text-[#0b1416] hover:bg-emerald-400">
+                            {sendMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                           </Button>
-                          
-                          {/* Botão para abrir câmera */}
-                          <Button onClick={startCamera} className="border border-white/10 bg-[#0b1416] px-3 text-slate-400 hover:bg-white/5 hover:text-white" title="Tirar foto">
-                            <ImageIcon className="h-4 w-4" />
+                        ) : (
+                          <Button onClick={startRecording} className="bg-emerald-500 px-4 text-[#0b1416] hover:bg-emerald-400">
+                            <Mic className="h-5 w-5" />
                           </Button>
-                          
-                          {/* Botão para enviar por URL */}
-                          <Dialog open={urlDialogOpen} onOpenChange={setUrlDialogOpen}>
-                            <DialogTrigger asChild>
-                              <Button className="border border-white/10 bg-[#0b1416] px-3 text-slate-400 hover:bg-white/5 hover:text-white" title="Enviar por URL">
-                                <FileIcon className="h-4 w-4" />
-                              </Button>
-                            </DialogTrigger>
-                            <DialogContent className="max-w-md">
-                              <DialogHeader>
-                                <DialogTitle>Enviar mídia por URL</DialogTitle>
-                              </DialogHeader>
-                              <div className="space-y-4">
-                                <div>
-                                  <label className="mb-1 block text-xs text-slate-400">Tipo de mídia</label>
-                                  <Select value={urlType} onValueChange={(val: any) => setUrlType(val)}>
-                                    <SelectTrigger className="border-white/10 bg-[#0b1416]">
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="image">Imagem</SelectItem>
-                                      <SelectItem value="video">Vídeo</SelectItem>
-                                      <SelectItem value="audio">Áudio</SelectItem>
-                                      <SelectItem value="document">Documento</SelectItem>
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-                                <div>
-                                  <label className="mb-1 block text-xs text-slate-400">URL da mídia</label>
-                                  <Input 
-                                    value={mediaUrl}
-                                    onChange={(e) => setMediaUrl(e.target.value)}
-                                    placeholder="https://exemplo.com/imagem.jpg"
-                                    className="border-white/10 bg-[#0b1416]"
-                                  />
-                                </div>
-                                <Button 
-                                  onClick={() => {
-                                    if (mediaUrl) {
-                                      sendMediaByUrl(mediaUrl, urlType);
-                                    }
-                                  }} 
-                                  className="w-full bg-emerald-500 text-[#0b1416] hover:bg-emerald-400"
-                                  disabled={!mediaUrl}
-                                >
-                                  Enviar
-                                </Button>
-                              </div>
-                            </DialogContent>
-                          </Dialog>
-
-                          <input
-                            type="file"
-                            ref={fileRef}
-                            className="hidden"
-                            onChange={handleFileChange}
-                            accept=".jpg,.jpeg,.png,.gif,.webp,.mp4,.mp3,.pdf,.doc,.docx,.xls,.xlsx,.txt"
-                          />
-                          <Button onClick={() => fileRef.current?.click()} disabled={mediaMut.isPending} className="border border-white/10 bg-[#0b1416] px-3 text-slate-400 hover:bg-white/5 hover:text-white" title="Anexar arquivo">
-                            {mediaMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}
-                          </Button>
-                          
-                          <Textarea
-                            rows={2}
-                            value={reply}
-                            onChange={(e) => setReply(e.target.value)}
-                            placeholder="Escreva uma resposta…"
-                            className="min-h-[52px] border-white/10 bg-[#0b1416]"
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter" && !e.shiftKey) {
-                                e.preventDefault();
-                                if (reply.trim()) sendMut.mutate();
-                              }
-                            }}
-                          />
-                          {reply.trim() ? (
-                            <Button onClick={() => sendMut.mutate()} disabled={sendMut.isPending} className="bg-emerald-500 px-4 text-[#0b1416] hover:bg-emerald-400">
-                              {sendMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                            </Button>
-                          ) : (
-                            <Button onClick={startRecording} className="bg-emerald-500 px-4 text-[#0b1416] hover:bg-emerald-400">
-                              <Mic className="h-5 w-5" />
-                            </Button>
-                          )}
-                        </div>
-                        <div className="text-[10px] text-slate-500">Enter para enviar, Shift + Enter para quebrar linha</div>
+                        )}
                       </div>
                     )}
+                    {!isRecording && <div className="mt-1 text-[10px] text-slate-500">Enter para enviar, Shift + Enter para quebrar linha</div>}
                   </div>
                 )}
               </div>
@@ -933,43 +792,6 @@ export function ChatMeta({ account, allAccounts, onSwitchAccount }: { account: Z
           )}
         </div>
       </div>
-
-      {/* Modal da Câmera */}
-      {showCamera && (
-        <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center">
-          <div className="relative bg-[#0b1416] rounded-lg p-4 max-w-lg w-full">
-            <button
-              onClick={() => {
-                setShowCamera(false);
-                const stream = videoRef.current?.srcObject as MediaStream;
-                stream?.getTracks().forEach(track => track.stop());
-              }}
-              className="absolute top-2 right-2 text-white hover:text-red-500 z-10"
-            >
-              <X className="h-6 w-6" />
-            </button>
-            <div className="relative">
-              <video ref={videoRef} className="w-full rounded-lg aspect-video object-cover" autoPlay playsInline />
-              <canvas ref={canvasRef} className="hidden" />
-            </div>
-            <div className="flex gap-4 mt-4 justify-center">
-              <Button 
-                onClick={() => {
-                  setShowCamera(false);
-                  const stream = videoRef.current?.srcObject as MediaStream;
-                  stream?.getTracks().forEach(track => track.stop());
-                }}
-                variant="destructive"
-              >
-                Cancelar
-              </Button>
-              <Button onClick={capturePhoto} className="bg-emerald-500 text-[#0b1416] hover:bg-emerald-400">
-                <ImageIcon className="h-5 w-5 mr-2" /> Capturar Foto
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -990,7 +812,6 @@ function MediaMessage({ text, accessToken }: { text: string; accessToken: string
   const [loading, setLoading] = useState(true);
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
   const [error, setError] = useState("");
-  const [progress, setProgress] = useState(0);
 
   const parts = text.split("|");
   const typeStr = parts[0];
@@ -1001,168 +822,57 @@ function MediaMessage({ text, accessToken }: { text: string; accessToken: string
   useEffect(() => {
     if (!mediaId) {
       setLoading(false);
-      setError("ID da mídia não encontrado");
       return;
     }
-
     let alive = true;
-
-    const loadMedia = async () => {
+    (async () => {
       try {
-        setLoading(true);
-        setProgress(0);
-
-        // 1. Buscar informações da mídia
-        const mediaRes = await fetch(`https://graph.facebook.com/v21.0/${mediaId}`, {
-          headers: { 
-            Authorization: `Bearer ${accessToken}` 
-          },
+        const res = await fetch(`https://graph.facebook.com/v21.0/${mediaId}`, {
+          headers: { Authorization: `Bearer ${accessToken}` },
         });
+        const data = await res.json();
+        if (!data.url) throw new Error("URL de mídia não encontrada");
 
-        if (!mediaRes.ok) {
-          const errorData = await mediaRes.json();
-          throw new Error(errorData.error?.message || "Erro ao buscar informações da mídia");
-        }
-
-        const mediaData = await mediaRes.json();
-        
-        if (!mediaData.url) {
-          throw new Error("URL da mídia não encontrada");
-        }
-
-        // 2. Baixar o arquivo com progresso
-        const xhr = new XMLHttpRequest();
-        xhr.open("GET", mediaData.url, true);
-        xhr.setRequestHeader("Authorization", `Bearer ${accessToken}`);
-
-        await new Promise((resolve, reject) => {
-          xhr.onload = () => {
-            if (xhr.status === 200) {
-              resolve(xhr.response);
-            } else {
-              reject(new Error(`Erro ao baixar: ${xhr.status}`));
-            }
-          };
-          xhr.onerror = () => reject(new Error("Erro de rede ao baixar mídia"));
-          xhr.onprogress = (event) => {
-            if (event.total > 0) {
-              const percent = (event.loaded / event.total) * 100;
-              setProgress(Math.round(percent));
-            }
-          };
-          xhr.responseType = "blob";
-          xhr.send();
+        const fileRes = await fetch(data.url, {
+          headers: { Authorization: `Bearer ${accessToken}` },
         });
+        if (!fileRes.ok) throw new Error("Erro ao baixar o arquivo");
+        const blob = await fileRes.blob();
 
         if (!alive) return;
-
-        const blob = xhr.response as Blob;
-        const url = URL.createObjectURL(blob);
-        setBlobUrl(url);
-        setError("");
-
+        setBlobUrl(URL.createObjectURL(blob));
       } catch (err: any) {
-        console.error("Erro no MediaMessage:", err);
-        if (alive) {
-          setError(err.message || "Erro ao carregar mídia");
-        }
+        if (alive) setError(err.message);
       } finally {
         if (alive) setLoading(false);
       }
-    };
-
-    loadMedia();
-
-    return () => {
-      alive = false;
-      if (blobUrl) {
-        URL.revokeObjectURL(blobUrl);
-      }
-    };
+    })();
+    return () => { alive = false; };
   }, [mediaId, accessToken]);
 
-  if (!mediaId) {
-    return <div className="text-slate-400 text-sm">Mídia sem ID</div>;
-  }
+  if (!mediaId) return <div>{text}</div>;
 
-  if (loading) {
-    return (
-      <div className="flex flex-col items-center gap-2 text-slate-400 p-2 min-w-[100px]">
-        <Loader2 className="h-6 w-6 animate-spin" />
-        <span className="text-xs">Carregando... {progress}%</span>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="text-red-400 text-xs p-2 bg-red-500/10 rounded-lg">
-        <span className="font-semibold">Erro:</span> {error}
-      </div>
-    );
-  }
-
-  if (!blobUrl) {
-    return (
-      <div className="text-slate-400 text-sm p-2">
-        Mídia não disponível
-      </div>
-    );
-  }
-
-  // Renderizar conforme o tipo
   return (
-    <div className="flex flex-col gap-2 max-w-full">
-      {type === "image" && (
-        <img 
-          src={blobUrl} 
-          alt={caption || "Imagem"} 
-          className="max-w-full rounded-lg max-h-[300px] object-contain" 
-          loading="lazy"
-        />
-      )}
-      
-      {type === "video" && (
-        <video 
-          src={blobUrl} 
-          controls 
-          className="max-w-full rounded-lg max-h-[300px]" 
-          preload="metadata"
-        />
-      )}
-      
-      {type === "audio" && (
-        <audio 
-          src={blobUrl} 
-          controls 
-          className="max-w-full" 
-          preload="metadata"
-        />
-      )}
-      
-      {type === "document" && (
-        <a 
-          href={blobUrl} 
-          download={caption || "documento"} 
-          className="flex items-center gap-2 text-emerald-400 underline hover:text-emerald-300 p-2 bg-white/5 rounded-lg"
-        >
-          <FileIcon className="h-5 w-5" /> 
-          {caption || "Baixar documento"}
-        </a>
-      )}
-      
-      {type === "sticker" && (
-        <img 
-          src={blobUrl} 
-          alt="Sticker" 
-          className="max-w-[160px] rounded-lg" 
-          loading="lazy"
-        />
-      )}
-
-      {caption && type !== "document" && type !== "sticker" && (
-        <div className="mt-1 text-sm text-slate-200">{caption}</div>
-      )}
+    <div className="flex flex-col gap-2">
+      {loading ? (
+        <div className="flex items-center gap-2 text-slate-400">
+          <Loader2 className="h-4 w-4 animate-spin" /> Baixando...
+        </div>
+      ) : error ? (
+        <div className="text-red-400 text-xs">Erro: {error}</div>
+      ) : blobUrl ? (
+        <div className="max-w-[240px]">
+          {type === "image" && <img src={blobUrl} alt={caption} className="max-w-full rounded-lg" />}
+          {type === "video" && <video src={blobUrl} controls className="max-w-full rounded-lg" />}
+          {type === "audio" && <audio src={blobUrl} controls className="max-w-full" />}
+          {type === "document" && (
+            <a href={blobUrl} download={caption || "documento"} className="flex items-center gap-2 text-emerald-400 underline">
+              <Paperclip className="h-4 w-4" /> {caption || "Baixar documento"}
+            </a>
+          )}
+        </div>
+      ) : null}
+      {caption && <div className="mt-1 text-sm">{caption}</div>}
     </div>
   );
 }
