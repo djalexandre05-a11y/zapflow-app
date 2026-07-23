@@ -4,6 +4,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Loader2, Send, Megaphone, Users, MessageSquareText, Settings2, Paperclip, X } from "lucide-react";
+import imageCompression from "browser-image-compression";
 import { metaListTemplates, metaBroadcast, metaUploadMedia } from "@/lib/meta.functions";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -116,19 +117,60 @@ function BroadcastsMetaUI({ account }: { account: any }) {
       let mediaType: string | undefined;
 
       if (file) {
-        const type = file.type;
-        if (type.startsWith("image/")) mediaType = "image";
-        else if (type.startsWith("audio/")) mediaType = "audio";
-        else if (type.startsWith("video/")) mediaType = "video";
-        else mediaType = "document";
+        let uploadFile = file;
+        const ext = uploadFile.name.split('.').pop()?.toLowerCase() || '';
+        const isImage = uploadFile.type.startsWith("image/") || ['png', 'jpg', 'jpeg', 'webp', 'gif'].includes(ext);
 
-        const formData = new FormData();
-        formData.append("accessToken", account.accessToken!);
-        formData.append("phoneNumberId", account.phoneNumberId!);
-        formData.append("file", file);
-        
-        const uploadRes = await uploadFn({ data: formData });
-        mediaId = uploadRes.mediaId;
+        if (isImage) {
+          mediaType = "image";
+          if (uploadFile.size > 4 * 1024 * 1024) {
+            toast.info("Comprimindo imagem pesada antes do disparo...");
+            try {
+              const compressedBlob = await imageCompression(uploadFile, {
+                maxSizeMB: 3.5,
+                maxWidthOrHeight: 1920,
+                useWebWorker: true
+              });
+              uploadFile = new File([compressedBlob], uploadFile.name, { type: compressedBlob.type });
+            } catch (err) {
+              console.error("Erro na compressão:", err);
+            }
+          }
+        } else if (uploadFile.type.startsWith("video/") || ['mp4', 'webm', 'mov'].includes(ext)) {
+          mediaType = "video";
+        } else if (uploadFile.type.startsWith("audio/") || ['mp3', 'ogg', 'wav'].includes(ext)) {
+          mediaType = "audio";
+        } else {
+          mediaType = "document";
+        }
+
+        const isSmallEnough = uploadFile.size < 4.2 * 1024 * 1024;
+
+        if (!isSmallEnough) {
+          // Arquivos grandes (vídeos): Upload direto pelo frontend para evitar limite 413 da Vercel
+          const formData = new FormData();
+          formData.append("messaging_product", "whatsapp");
+          formData.append("file", uploadFile, uploadFile.name);
+
+          const uploadRes = await fetch(`https://graph.facebook.com/v21.0/${account.phoneNumberId}/media`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${account.accessToken}` },
+            body: formData,
+          });
+
+          const uploadBody = await uploadRes.json();
+          if (!uploadRes.ok) throw new Error(`Upload frontal falhou: ${uploadBody.error?.message || "Erro desconhecido"}`);
+          mediaId = uploadBody.id;
+        } else {
+          // Arquivos pequenos (fotos e documentos): Upload pelo backend confiável
+          const formData = new FormData();
+          formData.append("accessToken", account.accessToken!);
+          formData.append("phoneNumberId", account.phoneNumberId!);
+          formData.append("file", uploadFile);
+          
+          const uploadRes = await uploadFn({ data: formData });
+          mediaId = uploadRes.mediaId;
+        }
       }
 
       return broadcastFn({
