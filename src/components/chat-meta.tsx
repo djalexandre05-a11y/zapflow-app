@@ -238,12 +238,24 @@ export function ChatMeta({ account, allAccounts, onSwitchAccount }: { account: Z
   const mediaMut = useMutation({
     mutationFn: async (file: File) => {
       if (!selected) throw new Error("Selecione uma conversa");
+      const isImage = file.type.startsWith("image/");
+      const isVideo = file.type.startsWith("video/");
+      
+      // Validação de tamanho baseada nos limites do WhatsApp Cloud API
+      if (isImage && file.size > 5 * 1024 * 1024) {
+        throw new Error("Imagens devem ter no máximo 5MB (limite do WhatsApp).");
+      }
+      if (isVideo && file.size > 16 * 1024 * 1024) {
+        throw new Error("Vídeos devem ter no máximo 16MB (limite do WhatsApp).");
+      }
 
-      // O limite do Vercel para body é de 4.5MB. 
-      // Se o arquivo for menor que 4.2MB (maioria das fotos, áudios e documentos), 
-      // enviamos pelo backend, onde já sabíamos que funcionava perfeitamente para fotos.
-      // Se for maior, enviamos diretamente pelo navegador (que funciona para vídeos pesados e não bate no limite do Vercel).
-      if (file.size < 4.2 * 1024 * 1024) {
+      // 1. Imagens vão pelo backend (evita bug de 'Invalid parameter' do FormData do browser na Meta)
+      // 2. Arquivos pequenos (< 4MB) vão pelo backend (mais rápido e seguro)
+      // 3. Vídeos pesados vão direto pelo frontend (não bate no limite de 4.5MB do Vercel)
+      if (isImage || file.size < 4 * 1024 * 1024) {
+        if (file.size > 4.4 * 1024 * 1024) {
+          throw new Error("Tamanho máximo para este tipo de arquivo excedido (limite do servidor: 4.4MB).");
+        }
         const formData = new FormData();
         formData.append("accessToken", accessToken);
         formData.append("phoneNumberId", phoneNumberId);
