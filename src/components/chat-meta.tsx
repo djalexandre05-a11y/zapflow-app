@@ -7,17 +7,12 @@ import { Loader2, Send, Search, MessageCircle, Plus, RefreshCw, Paperclip, Wand2
 import { metaSendText, metaSendTemplate, metaListTemplates, metaSendMedia } from "@/lib/meta.functions";
 import { fetchIncomingMessages, deleteIncomingConversation } from "@/lib/incoming.functions";
 import { generateDraft } from "@/lib/ai.functions";
-import { 
-  getWorkspaces, 
-  getWorkspaceMembers, 
-  transferContact 
-} from "@/lib/workspace.functions";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/components/auth-provider";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { Select as UiSelect, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/app-ui";
 import type { ZapAccount } from "@/lib/account";
@@ -67,42 +62,16 @@ export function ChatMeta({ account }: { account: ZapAccount }) {
   const sendMediaFn = useServerFn(metaSendMedia);
   const aiDraftFn = useServerFn(generateDraft);
   const delConvFn = useServerFn(deleteIncomingConversation);
-  const getWsFn = useServerFn(getWorkspaces);
-  const getMemFn = useServerFn(getWorkspaceMembers);
-  const transferFn = useServerFn(transferContact);
 
   const [convs, setConvs] = useState<Conv[]>(() => loadConvs(phoneNumberId));
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [filterView, setFilterView] = useState<"minhas" | "todas">("minhas");
   const [reply, setReply] = useState("");
   const [tplPick, setTplPick] = useState("");
   const [newOpen, setNewOpen] = useState(false);
   const [newPhone, setNewPhone] = useState("");
   const [newName, setNewName] = useState("");
-  const [contacts, setContacts] = useState<{ id: string, name: string, phone: string, assigned_to?: string }[]>([]);
-  
-  // Workspace data for transfer
-  const wsQ = useQuery({
-    queryKey: ["workspaces", user?.id],
-    queryFn: () => getWsFn({ data: { userId: user!.id, email: user!.email! } }),
-    enabled: !!user,
-  });
-  const ws = wsQ.data?.[0];
-  const memQ = useQuery({
-    queryKey: ["ws-members", ws?.id],
-    queryFn: () => getMemFn({ data: { workspaceId: ws!.id } }),
-    enabled: !!ws,
-  });
-
-  const transferMut = useMutation({
-    mutationFn: ({ phone, email }: { phone: string; email: string | null }) => transferFn({ data: { phone, assignToEmail: email } }),
-    onSuccess: (_, { phone, email }) => {
-      setContacts(prev => prev.map(c => c.phone === phone ? { ...c, assigned_to: email || undefined } : c));
-      toast.success(email ? `Transferido para ${email}` : "Movido para fila geral");
-    },
-    onError: (e: any) => toast.error(e.message),
-  });
+  const [contacts, setContacts] = useState<{ id: string, name: string, phone: string }[]>([]);
   
   // Audio recording state
   const [isRecording, setIsRecording] = useState(false);
@@ -436,10 +405,6 @@ export function ChatMeta({ account }: { account: ZapAccount }) {
 
   const filtered = convs
     .filter((c) => {
-      const contact = contacts.find(ct => ct.phone === c.id);
-      if (filterView === "minhas") {
-        if (contact?.assigned_to !== user?.email) return false;
-      }
       if (!search.trim()) return true;
       const q = search.toLowerCase();
       return c.name.toLowerCase().includes(q) || c.id.includes(q);
@@ -545,7 +510,7 @@ export function ChatMeta({ account }: { account: ZapAccount }) {
             </div>
 
             {contacts.length > 0 && (
-              <UiSelect onValueChange={(val) => {
+              <Select onValueChange={(val) => {
                 const c = contacts.find(x => x.id === val);
                 if (c) startContactConv(c);
               }}>
@@ -557,25 +522,8 @@ export function ChatMeta({ account }: { account: ZapAccount }) {
                     <SelectItem key={c.id} value={c.id}>{c.name} · {c.phone}</SelectItem>
                   ))}
                 </SelectContent>
-              </UiSelect>
+              </Select>
             )}
-
-            <div className="flex gap-1 border-b border-white/10 pb-2 mb-2">
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={() => setFilterView("minhas")}
-                className={`flex-1 h-8 text-xs ${filterView === "minhas" ? "bg-emerald-500/20 text-emerald-400" : "text-slate-400"}`}>
-                Minhas
-              </Button>
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={() => setFilterView("todas")}
-                className={`flex-1 h-8 text-xs ${filterView === "todas" ? "bg-white/10 text-white" : "text-slate-400"}`}>
-                Todas
-              </Button>
-            </div>
 
             <div className="text-[11px] text-slate-500">
               {filtered.length} conversa(s) ativa(s)
@@ -654,7 +602,7 @@ export function ChatMeta({ account }: { account: ZapAccount }) {
             </div>
           ) : (
             <>
-              <div className="flex items-center justify-between border-b border-white/5 bg-[#0f1b1e] px-4 py-3">
+                <div className="flex items-center justify-between border-b border-white/5 bg-[#0f1b1e] px-4 py-3">
                 <div className="flex items-center gap-3">
                   <div className="grid h-9 w-9 place-items-center rounded-full bg-emerald-500 text-sm font-bold text-[#0b1416]">
                     {(selected.name || "?").charAt(0).toUpperCase()}
@@ -664,33 +612,11 @@ export function ChatMeta({ account }: { account: ZapAccount }) {
                     <div className="text-xs text-slate-500">+{selected.id}</div>
                   </div>
                 </div>
-                
-                <div className="flex items-center gap-2">
-                  {memQ.data && memQ.data.length > 0 && (
-                    <UiSelect 
-                      value={contacts.find(c => c.phone === selected.id)?.assigned_to || "unassigned"}
-                      onValueChange={(val) => transferMut.mutate({ phone: selected.id, email: val === "unassigned" ? null : val })}
-                      disabled={transferMut.isPending}
-                    >
-                      <SelectTrigger className="h-8 w-[160px] border-white/10 bg-[#0b1416] text-xs text-slate-300">
-                        <SelectValue placeholder="Atribuir para..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="unassigned">Fila Geral</SelectItem>
-                        <SelectItem value={user!.email!}>Você ({user!.email})</SelectItem>
-                        {memQ.data.filter((m: any) => m.user_email !== user!.email).map((m: any) => (
-                          <SelectItem key={m.id} value={m.user_email}>{m.user_email}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </UiSelect>
-                  )}
-
-                  {outOfWindow && (
-                    <Badge className="border border-amber-500/30 bg-amber-500/20 text-amber-300 hover:bg-amber-500/20">
-                      Fora da janela 24h
-                    </Badge>
-                  )}
-                </div>
+                {outOfWindow && (
+                  <Badge className="border border-amber-500/30 bg-amber-500/20 text-amber-300 hover:bg-amber-500/20">
+                    Fora da janela 24h — use template
+                  </Badge>
+                )}
               </div>
 
               <div ref={scrollRef} className="min-h-0 flex-1 space-y-2 overflow-y-auto p-4">
@@ -721,7 +647,7 @@ export function ChatMeta({ account }: { account: ZapAccount }) {
                 {outOfWindow ? (
                   <div className="flex gap-2">
                     <div className="flex-1">
-                      <UiSelect value={tplPick} onValueChange={setTplPick}>
+                      <Select value={tplPick} onValueChange={setTplPick}>
                         <SelectTrigger className="h-11 border-white/10 bg-[#0b1416]">
                           <SelectValue placeholder={tplQ.isLoading ? "Carregando templates…" : templates.length ? "-- template --" : "Nenhum template aprovado"} />
                         </SelectTrigger>
@@ -730,7 +656,7 @@ export function ChatMeta({ account }: { account: ZapAccount }) {
                             <SelectItem key={`${t.name}-${t.language}`} value={t.name}>{t.name} ({t.language})</SelectItem>
                           ))}
                         </SelectContent>
-                      </UiSelect>
+                      </Select>
                     </div>
                     <Button onClick={() => tplMut.mutate()} disabled={tplMut.isPending || !tplPick} className="h-11 bg-emerald-500 px-5 text-[#0b1416] hover:bg-emerald-400">
                       {tplMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Enviar"}

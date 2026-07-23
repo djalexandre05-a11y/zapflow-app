@@ -18,7 +18,6 @@ import { Route as AppConectarRouteImport } from './routes/_app.conectar'
 import { Route as AppConfigRouteImport } from './routes/_app.config'
 import { Route as AppContatosRouteImport } from './routes/_app.contatos'
 import { Route as AppDisparosRouteImport } from './routes/_app.disparos'
-import { Route as AppEquipeRouteImport } from './routes/_app.equipe'
 import { Route as AppGruposRouteImport } from './routes/_app.grupos'
 import { Route as AppRespostasRouteImport } from './routes/_app.respostas'
 import { Route as AppTemplatesRouteImport } from './routes/_app.templates'
@@ -70,11 +69,6 @@ const AppDisparosRoute = AppDisparosRouteImport.update({
   path: '/disparos',
   getParentRoute: () => AppRoute,
 } as any)
-const AppEquipeRoute = AppEquipeRouteImport.update({
-  id: '/equipe',
-  path: '/equipe',
-  getParentRoute: () => AppRoute,
-} as any)
 const AppGruposRoute = AppGruposRouteImport.update({
   id: '/grupos',
   path: '/grupos',
@@ -116,7 +110,6 @@ export interface FileRoutesByFullPath {
   '/config': typeof AppConfigRoute
   '/contatos': typeof AppContatosRoute
   '/disparos': typeof AppDisparosRoute
-  '/equipe': typeof AppEquipeRoute
   '/grupos': typeof AppGruposRoute
   '/respostas': typeof AppRespostasRoute
   '/templates': typeof AppTemplatesRoute
@@ -132,7 +125,6 @@ export interface FileRoutesByTo {
   '/config': typeof AppConfigRoute
   '/contatos': typeof AppContatosRoute
   '/disparos': typeof AppDisparosRoute
-  '/equipe': typeof AppEquipeRoute
   '/grupos': typeof AppGruposRoute
   '/respostas': typeof AppRespostasRoute
   '/templates': typeof AppTemplatesRoute
@@ -151,7 +143,6 @@ export interface FileRoutesById {
   '/_app/config': typeof AppConfigRoute
   '/_app/contatos': typeof AppContatosRoute
   '/_app/disparos': typeof AppDisparosRoute
-  '/_app/equipe': typeof AppEquipeRoute
   '/_app/grupos': typeof AppGruposRoute
   '/_app/respostas': typeof AppRespostasRoute
   '/_app/templates': typeof AppTemplatesRoute
@@ -171,7 +162,6 @@ export interface FileRouteTypes {
     | '/config'
     | '/contatos'
     | '/disparos'
-    | '/equipe'
     | '/grupos'
     | '/respostas'
     | '/templates'
@@ -187,7 +177,6 @@ export interface FileRouteTypes {
     | '/config'
     | '/contatos'
     | '/disparos'
-    | '/equipe'
     | '/grupos'
     | '/respostas'
     | '/templates'
@@ -205,7 +194,6 @@ export interface FileRouteTypes {
     | '/_app/config'
     | '/_app/contatos'
     | '/_app/disparos'
-    | '/_app/equipe'
     | '/_app/grupos'
     | '/_app/respostas'
     | '/_app/templates'
@@ -286,13 +274,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppDisparosRouteImport
       parentRoute: typeof AppRoute
     }
-    '/_app/equipe': {
-      id: '/_app/equipe'
-      path: '/equipe'
-      fullPath: '/equipe'
-      preLoaderRoute: typeof AppEquipeRouteImport
-      parentRoute: typeof AppRoute
-    }
     '/_app/grupos': {
       id: '/_app/grupos'
       path: '/grupos'
@@ -345,7 +326,6 @@ interface AppRouteChildren {
   AppConfigRoute: typeof AppConfigRoute
   AppContatosRoute: typeof AppContatosRoute
   AppDisparosRoute: typeof AppDisparosRoute
-  AppEquipeRoute: typeof AppEquipeRoute
   AppGruposRoute: typeof AppGruposRoute
   AppRespostasRoute: typeof AppRespostasRoute
   AppTemplatesRoute: typeof AppTemplatesRoute
@@ -361,7 +341,6 @@ const AppRouteChildren: AppRouteChildren = {
   AppConfigRoute: AppConfigRoute,
   AppContatosRoute: AppContatosRoute,
   AppDisparosRoute: AppDisparosRoute,
-  AppEquipeRoute: AppEquipeRoute,
   AppGruposRoute: AppGruposRoute,
   AppRespostasRoute: AppRespostasRoute,
   AppTemplatesRoute: AppTemplatesRoute,
