@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Loader2, Send, Search, MessageCircle, Plus, RefreshCw, Paperclip, Wand2, Mic, Trash2 } from "lucide-react";
 
-import { metaSendText, metaSendTemplate, metaListTemplates, metaSendMedia } from "@/lib/meta.functions";
+import { metaSendText, metaSendTemplate, metaListTemplates, metaSendMedia, metaSendMediaById } from "@/lib/meta.functions";
 import { fetchIncomingMessages, deleteIncomingConversation } from "@/lib/incoming.functions";
 import { generateDraft } from "@/lib/ai.functions";
 import { supabase } from "@/lib/supabase";
@@ -60,6 +60,7 @@ export function ChatMeta({ account, allAccounts, onSwitchAccount }: { account: Z
   const listTplFn = useServerFn(metaListTemplates);
   const fetchInFn = useServerFn(fetchIncomingMessages);
   const sendMediaFn = useServerFn(metaSendMedia);
+  const sendMediaByIdFn = useServerFn(metaSendMediaById);
   const aiDraftFn = useServerFn(generateDraft);
   const delConvFn = useServerFn(deleteIncomingConversation);
 
@@ -239,12 +240,41 @@ export function ChatMeta({ account, allAccounts, onSwitchAccount }: { account: Z
       if (!selected) throw new Error("Selecione uma conversa");
 
       const formData = new FormData();
-      formData.append("accessToken", accessToken);
-      formData.append("phoneNumberId", phoneNumberId);
-      formData.append("to", selected.id);
+      formData.append("messaging_product", "whatsapp");
       formData.append("file", file);
 
-      const res: any = await sendMediaFn({ data: formData as any });
+      // 1. Faz upload direto para o Meta a partir do navegador
+      const uploadRes = await fetch(`https://graph.facebook.com/v21.0/${phoneNumberId}/media`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: formData,
+      });
+
+      const uploadBody = await uploadRes.json();
+      if (!uploadRes.ok) {
+        throw new Error(`Upload falhou: ${uploadBody.error?.message || "Erro desconhecido"}`);
+      }
+
+      const mediaId = uploadBody.id;
+
+      let type = "document";
+      if (file.type.startsWith("image/")) type = "image";
+      if (file.type.startsWith("video/")) type = "video";
+      if (file.type.startsWith("audio/")) type = "audio";
+
+      // 2. Envia a mensagem através do backend apenas com o ID da mídia (evita limite 4.5MB Payload do Vercel)
+      const res: any = await sendMediaByIdFn({ 
+        data: { 
+          accessToken, 
+          phoneNumberId, 
+          to: selected.id, 
+          mediaId, 
+          type, 
+          filename: file.name 
+        } 
+      });
 
       const now = new Date().toISOString();
       const typeStr = res._type ? `[${res._type}]` : "[document]";

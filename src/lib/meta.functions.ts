@@ -173,6 +173,31 @@ export const metaSendMedia = createServerFn({ method: "POST" })
     return { ...sendRes, _mediaId: mediaId, _type: type };
   });
 
+export const metaSendMediaById = createServerFn({ method: "POST" })
+  .inputValidator((d: { accessToken: string; phoneNumberId: string; to: string; mediaId: string; type: string; filename?: string }) => {
+    if (!d.accessToken || !d.phoneNumberId || !d.to || !d.mediaId || !d.type) throw new Error("Dados incompletos");
+    return d;
+  })
+  .handler(async ({ data }) => {
+    const dest = data.to.replace(/\D/g, "");
+
+    const payload: any = {
+      messaging_product: "whatsapp",
+      to: dest,
+      type: data.type,
+    };
+
+    payload[data.type] = { id: data.mediaId };
+    if (data.type === "document" && data.filename) payload[data.type].filename = data.filename;
+
+    const sendRes = await metaFetch(data.accessToken, `/${data.phoneNumberId}/messages`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    await logOutgoing(data.phoneNumberId, dest, `[Media] ${data.type}`, sendRes);
+    return { ...sendRes, _mediaId: data.mediaId, _type: data.type };
+  });
+
 export const metaListTemplates = createServerFn({ method: "POST" })
   .inputValidator((d: ListTplInput) => {
     if (!d.accessToken || !d.wabaId) throw new Error("Credenciais Meta ausentes");
