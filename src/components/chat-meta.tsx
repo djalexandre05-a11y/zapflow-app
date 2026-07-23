@@ -241,7 +241,8 @@ export function ChatMeta({ account, allAccounts, onSwitchAccount }: { account: Z
 
       const formData = new FormData();
       formData.append("messaging_product", "whatsapp");
-      formData.append("file", file);
+      formData.append("file", file, file.name);
+      formData.append("type", file.type);
 
       // 1. Faz upload direto para o Meta a partir do navegador
       const uploadRes = await fetch(`https://graph.facebook.com/v21.0/${phoneNumberId}/media`, {
