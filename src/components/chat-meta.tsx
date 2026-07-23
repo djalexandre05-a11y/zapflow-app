@@ -604,7 +604,6 @@ export function ChatMeta({ account, allAccounts, onSwitchAccount }: { account: Z
           </div>
         </div>
 
-        {/* Thread */}
         <div className="flex min-h-0 flex-col bg-[#0b1416]">
           {!selected ? (
             <div className="grid flex-1 place-items-center text-center">
@@ -616,7 +615,7 @@ export function ChatMeta({ account, allAccounts, onSwitchAccount }: { account: Z
               </div>
             </div>
           ) : (
-            <>
+            <div className="flex flex-1 flex-col min-h-0">
                 <div className="flex items-center justify-between border-b border-white/5 bg-[#0f1b1e] px-4 py-3">
                 <div className="flex items-center gap-3">
                   <div className="grid h-9 w-9 place-items-center rounded-full bg-emerald-500 text-sm font-bold text-[#0b1416]">
@@ -678,7 +677,7 @@ export function ChatMeta({ account, allAccounts, onSwitchAccount }: { account: Z
                     </Button>
                   </div>
                 ) : (
-                  <>
+                  <div className="flex flex-col w-full">
                     {isRecording ? (
                       <div className="flex w-full items-center gap-2">
                         <Button onClick={cancelRecording} variant="ghost" className="h-[52px] border border-white/10 px-4 text-rose-500 hover:bg-rose-500/10 hover:text-rose-400">
@@ -735,10 +734,10 @@ export function ChatMeta({ account, allAccounts, onSwitchAccount }: { account: Z
                       </div>
                     )}
                     {!isRecording && <div className="mt-1 text-[10px] text-slate-500">Enter para enviar, Shift + Enter para quebrar linha</div>}
-                  </>
+                  </div>
                 )}
               </div>
-            </>
+            </div>
           )}
         </div>
       </div>
