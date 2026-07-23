@@ -725,7 +725,7 @@ export function ChatMeta({ account, allAccounts, onSwitchAccount }: { account: Z
                           {/^(?:\[image\]|\[video\]|\[audio\]|\[document\])\|/.test(m.message) ? (
                             <MediaMessage text={m.message} accessToken={accessToken} />
                           ) : (
-                            <span>{m.message}</span>
+                            <FormatMessage text={m.message} />
                           )}
                         </div>
                         <div className={`mt-1 text-right text-[10px] ${mine ? "text-emerald-50/70" : "text-slate-500"}`}>
@@ -903,5 +903,23 @@ function MediaMessage({ text, accessToken }: { text: string; accessToken: string
       ) : null}
       {caption && <div className="mt-1 text-sm">{caption}</div>}
     </div>
+  );
+}
+
+function FormatMessage({ text }: { text: string }) {
+  const urlRegex = /(https?:\/\/[^\s]+)/g;
+  const parts = text.split(urlRegex);
+  return (
+    <>
+      {parts.map((part, i) =>
+        urlRegex.test(part) ? (
+          <a key={i} href={part} target="_blank" rel="noreferrer" className="underline hover:opacity-80">
+            {part}
+          </a>
+        ) : (
+          <span key={i}>{part}</span>
+        )
+      )}
+    </>
   );
 }

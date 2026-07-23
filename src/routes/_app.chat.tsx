@@ -526,7 +526,7 @@ function ChatPage({ apiKey }: { apiKey: string }) {
                   return (
                     <div key={m.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
                       <div className={`max-w-[70%] rounded-2xl px-3 py-2 text-sm ${mine ? "bg-emerald-600/90 text-white" : "bg-[#1a2b2e] text-slate-100"}`}>
-                        <div className="whitespace-pre-wrap break-words">{m.message || <span className="opacity-60">(sem texto)</span>}</div>
+                        <div className="whitespace-pre-wrap break-words"><FormatMessage text={m.message || ""} /></div>
                         {m.attachments?.map((a) => {
                           if (a.type === "image") {
                             return <img key={a.id} src={a.url} alt="anexo" className="mt-2 max-h-64 rounded-lg object-contain" />;
@@ -664,4 +664,23 @@ function relTime(iso: string) {
   const d = Math.floor(h / 24);
   if (d < 7) return `${d}d`;
   return new Date(iso).toLocaleDateString("pt-BR");
+}
+
+function FormatMessage({ text }: { text: string }) {
+  if (!text) return <span className="opacity-60">(sem texto)</span>;
+  const urlRegex = /(https?:\/\/[^\s]+)/g;
+  const parts = text.split(urlRegex);
+  return (
+    <>
+      {parts.map((part, i) =>
+        urlRegex.test(part) ? (
+          <a key={i} href={part} target="_blank" rel="noreferrer" className="underline hover:opacity-80">
+            {part}
+          </a>
+        ) : (
+          <span key={i}>{part}</span>
+        )
+      )}
+    </>
+  );
 }
