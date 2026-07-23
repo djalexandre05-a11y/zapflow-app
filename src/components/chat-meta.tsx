@@ -730,7 +730,7 @@ export function ChatMeta({ account }: { account: ZapAccount }) {
                             <SelectItem key={`${t.name}-${t.language}`} value={t.name}>{t.name} ({t.language})</SelectItem>
                           ))}
                         </SelectContent>
-                      </Select>
+                      </UiSelect>
                     </div>
                     <Button onClick={() => tplMut.mutate()} disabled={tplMut.isPending || !tplPick} className="h-11 bg-emerald-500 px-5 text-[#0b1416] hover:bg-emerald-400">
                       {tplMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Enviar"}
