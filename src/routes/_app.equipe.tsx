@@ -67,6 +67,7 @@ function EquipeManager({ user }: { user: any }) {
   const createMut = useMutation({
     mutationFn: (name: string) => createWsFn({ data: { userId: user.id, name } }),
     onSuccess: () => { wsQ.refetch(); toast.success("Equipe criada!"); },
+    onError: (e: any) => toast.error(e.message),
   });
 
   const addMut = useMutation({
