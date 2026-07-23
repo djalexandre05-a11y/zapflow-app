@@ -1,0 +1,1 @@
+ALTER TABLE IF EXISTS user_contacts ADD COLUMN IF NOT EXISTS tags text[] DEFAULT '{}';

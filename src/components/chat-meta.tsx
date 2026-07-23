@@ -2,10 +2,10 @@ import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Loader2, Send, Search, MessageCircle, Plus, RefreshCw, Paperclip, Wand2, Mic, Trash2 } from "lucide-react";
+import { Loader2, Send, Search, MessageCircle, Plus, RefreshCw, Paperclip, Wand2, Mic, Trash2, Phone, Tag, X } from "lucide-react";
 
 import { metaSendText, metaSendTemplate, metaListTemplates, metaSendMedia } from "@/lib/meta.functions";
-import { fetchIncomingMessages } from "@/lib/incoming.functions";
+import { fetchIncomingMessages, deleteIncomingConversation } from "@/lib/incoming.functions";
 import { generateDraft } from "@/lib/ai.functions";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/components/auth-provider";
@@ -24,6 +24,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 type Msg = {
   id: string;
@@ -61,6 +62,7 @@ export function ChatMeta({ account }: { account: ZapAccount }) {
   const fetchInFn = useServerFn(fetchIncomingMessages);
   const sendMediaFn = useServerFn(metaSendMedia);
   const aiDraftFn = useServerFn(generateDraft);
+  const delConvFn = useServerFn(deleteIncomingConversation);
 
   const [convs, setConvs] = useState<Conv[]>(() => loadConvs(phoneNumberId));
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -70,7 +72,8 @@ export function ChatMeta({ account }: { account: ZapAccount }) {
   const [newOpen, setNewOpen] = useState(false);
   const [newPhone, setNewPhone] = useState("");
   const [newName, setNewName] = useState("");
-  const [contacts, setContacts] = useState<{ id: string, name: string, phone: string }[]>([]);
+  const [contacts, setContacts] = useState<{ id: string, name: string, phone: string, tags?: string[] }[]>([]);
+  const [tagInput, setTagInput] = useState("");
   
   // Audio recording state
   const [isRecording, setIsRecording] = useState(false);
@@ -280,6 +283,66 @@ export function ChatMeta({ account }: { account: ZapAccount }) {
       toast.success("Rascunho gerado!");
     },
     onError: (e: Error) => toast.error(e.message),
+  });
+
+  const delConvMut = useMutation({
+    mutationFn: async (phone: string) => {
+      await delConvFn({ data: { phoneNumberId, fromNumber: phone } });
+      return phone;
+    },
+    onSuccess: (phone) => {
+      setConvs((prev) => prev.filter((c) => c.id !== phone));
+      if (selectedId === phone) setSelectedId(null);
+      toast.success("Conversa apagada");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const addTagMut = useMutation({
+    mutationFn: async ({ phone, tag }: { phone: string, tag: string }) => {
+      const existing = contacts.find(c => c.phone.replace(/\D/g, "") === phone);
+      if (existing) {
+        const newTags = Array.from(new Set([...(existing.tags || []), tag]));
+        await supabase.from("user_contacts").update({ tags: newTags }).eq("id", existing.id);
+        return { ...existing, tags: newTags };
+      } else {
+        const conv = convs.find(c => c.id === phone);
+        const { data, error } = await supabase.from("user_contacts").insert({
+          user_id: user!.id,
+          name: conv?.name || phone,
+          phone: phone,
+          tags: [tag]
+        }).select().single();
+        if (error) throw error;
+        return data;
+      }
+    },
+    onSuccess: (updatedContact) => {
+      setContacts(prev => {
+        const idx = prev.findIndex(c => c.id === updatedContact.id);
+        if (idx >= 0) {
+          const arr = [...prev];
+          arr[idx] = updatedContact;
+          return arr;
+        }
+        return [...prev, updatedContact];
+      });
+      setTagInput("");
+    }
+  });
+
+  const removeTagMut = useMutation({
+    mutationFn: async ({ contactId, tag }: { contactId: string, tag: string }) => {
+      const existing = contacts.find(c => c.id === contactId);
+      if (!existing) return;
+      const newTags = (existing.tags || []).filter(t => t !== tag);
+      await supabase.from("user_contacts").update({ tags: newTags }).eq("id", contactId);
+      return { ...existing, tags: newTags };
+    },
+    onSuccess: (updatedContact) => {
+      if (!updatedContact) return;
+      setContacts(prev => prev.map(c => c.id === updatedContact.id ? updatedContact : c));
+    }
   });
 
   const streamRef = useRef<MediaStream | null>(null);
@@ -521,11 +584,12 @@ export function ChatMeta({ account }: { account: ZapAccount }) {
             ) : filtered.map((c) => {
               const active = selectedId === c.id;
               const last = c.messages[c.messages.length - 1];
+              const contactInfo = contacts.find(con => con.phone.replace(/\D/g, "") === c.id);
               return (
-                <button
+                <div
                   key={c.id}
                   onClick={() => openConv(c.id)}
-                  className={`flex w-full items-start gap-3 border-b border-white/5 px-3 py-3 text-left transition ${active ? "bg-emerald-500/10" : "hover:bg-white/5"}`}
+                  className={`group flex w-full cursor-pointer items-start gap-3 border-b border-white/5 px-3 py-3 text-left transition ${active ? "bg-emerald-500/10" : "hover:bg-white/5"}`}
                 >
                   <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-emerald-500 text-sm font-bold text-[#0b1416]">
                     {(c.name || "?").charAt(0).toUpperCase()}
@@ -535,6 +599,20 @@ export function ChatMeta({ account }: { account: ZapAccount }) {
                       <div className="truncate text-sm font-semibold text-slate-100">{c.name}</div>
                       <span className="ml-auto shrink-0 text-[10px] text-slate-500">{relTime(c.updatedAt)}</span>
                     </div>
+                    {contactInfo?.tags && contactInfo.tags.length > 0 && (
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {contactInfo.tags.slice(0, 3).map(tag => (
+                          <span key={tag} className="rounded bg-blue-500/20 px-1 py-0.5 text-[9px] font-medium text-blue-300">
+                            {tag}
+                          </span>
+                        ))}
+                        {contactInfo.tags.length > 3 && (
+                          <span className="rounded bg-blue-500/20 px-1 py-0.5 text-[9px] font-medium text-blue-300">
+                            +{contactInfo.tags.length - 3}
+                          </span>
+                        )}
+                      </div>
+                    )}
                     <div className="mt-0.5 flex items-center gap-2">
                       <div className="truncate text-xs text-slate-400">
                         <span>{(() => {
@@ -552,7 +630,24 @@ export function ChatMeta({ account }: { account: ZapAccount }) {
                       ) : null}
                     </div>
                   </div>
-                </button>
+                  
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (confirm("Deseja apagar definitivamente o histórico desta conversa?")) {
+                        delConvMut.mutate(c.id);
+                      }
+                    }}
+                    className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded"
+                    title="Apagar conversa"
+                  >
+                    {delConvMut.isPending && delConvMut.variables === c.id ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-4 w-4" />
+                    )}
+                  </button>
+                </div>
               );
             })}
           </div>
@@ -581,11 +676,80 @@ export function ChatMeta({ account }: { account: ZapAccount }) {
                     <div className="text-xs text-slate-500">+{selected.id}</div>
                   </div>
                 </div>
-                {outOfWindow && (
-                  <Badge className="border border-amber-500/30 bg-amber-500/20 text-amber-300 hover:bg-amber-500/20">
-                    Fora da janela 24h — use template
-                  </Badge>
-                )}
+                
+                <div className="flex items-center gap-3">
+                  {(() => {
+                    const contactInfo = contacts.find(con => con.phone.replace(/\D/g, "") === selected.id);
+                    return (
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="ghost" size="sm" className="h-8 gap-1.5 border border-white/10 text-xs text-slate-300 hover:text-white">
+                            <Tag className="h-3 w-3" />
+                            {contactInfo?.tags?.length ? `${contactInfo.tags.length} Etiquetas` : "Etiquetas"}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-64 border-white/10 bg-[#0f1b1e] p-3 text-slate-300 shadow-xl" align="end">
+                          <h4 className="mb-2 text-sm font-medium text-slate-100">Etiquetas do Contato</h4>
+                          <div className="mb-3 flex flex-wrap gap-2">
+                            {contactInfo?.tags?.map(tag => (
+                              <Badge key={tag} variant="secondary" className="bg-blue-500/20 text-blue-300 hover:bg-blue-500/30">
+                                {tag}
+                                <button
+                                  onClick={() => removeTagMut.mutate({ contactId: contactInfo.id, tag })}
+                                  className="ml-1 text-blue-400 hover:text-blue-200"
+                                >
+                                  <X className="h-3 w-3" />
+                                </button>
+                              </Badge>
+                            ))}
+                            {(!contactInfo?.tags || contactInfo.tags.length === 0) && (
+                              <span className="text-xs text-slate-500">Nenhuma etiqueta.</span>
+                            )}
+                          </div>
+                          <div className="flex gap-2">
+                            <Input
+                              placeholder="Nova etiqueta..."
+                              value={tagInput}
+                              onChange={(e) => setTagInput(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" && tagInput.trim()) {
+                                  addTagMut.mutate({ phone: selected.id, tag: tagInput.trim() });
+                                }
+                              }}
+                              className="h-8 border-white/10 bg-black/20 text-xs"
+                            />
+                            <Button
+                              onClick={() => {
+                                if (tagInput.trim()) addTagMut.mutate({ phone: selected.id, tag: tagInput.trim() });
+                              }}
+                              disabled={!tagInput.trim() || addTagMut.isPending}
+                              size="sm"
+                              className="h-8 bg-emerald-500 text-[#0b1416] hover:bg-emerald-400"
+                            >
+                              Add
+                            </Button>
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+                    );
+                  })()}
+
+                  <a 
+                    href={`https://wa.me/${selected.id}`} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="flex h-8 items-center gap-1.5 rounded-md bg-emerald-500/10 px-3 text-xs font-medium text-emerald-400 transition-colors hover:bg-emerald-500/20"
+                    title="Ligar pelo WhatsApp Web / App"
+                  >
+                    <Phone className="h-3 w-3" /> Ligar
+                  </a>
+
+                  {outOfWindow && (
+                    <Badge className="border border-amber-500/30 bg-amber-500/20 text-amber-300 hover:bg-amber-500/20">
+                      Fora da janela 24h
+                    </Badge>
+                  )}
+                </div>
               </div>
 
               <div ref={scrollRef} className="min-h-0 flex-1 space-y-2 overflow-y-auto p-4">

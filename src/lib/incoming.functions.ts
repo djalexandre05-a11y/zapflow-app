@@ -26,3 +26,21 @@ export const getWebhookInfo = createServerFn({ method: "GET" }).handler(async ()
     verifyToken: process.env.META_WEBHOOK_VERIFY_TOKEN || "",
   };
 });
+
+type DeleteConvInput = { phoneNumberId: string; fromNumber: string };
+export const deleteIncomingConversation = createServerFn({ method: "POST" })
+  .inputValidator((d: DeleteConvInput) => {
+    if (!d.phoneNumberId || !d.fromNumber) throw new Error("Dados inválidos");
+    return d;
+  })
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error } = await supabaseAdmin
+      .from("wa_incoming")
+      .delete()
+      .eq("phone_number_id", data.phoneNumberId)
+      .eq("from_number", data.fromNumber);
+      
+    if (error) throw new Error(error.message);
+    return { success: true };
+  });
