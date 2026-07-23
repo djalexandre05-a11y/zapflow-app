@@ -113,7 +113,7 @@ type GetConnInput = { workspaceId: string };
 export const getConnections = createServerFn({ method: "POST" })
   .inputValidator((d: GetConnInput) => d)
   .handler(async ({ data }) => {
-    const { supabaseAdmin: _admin } = await import("@/integrations/supabase/client.server"); const supabaseAdmin = _admin as any;
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: rows, error } = await supabaseAdmin
       .from("workspace_connections")
       .select("*")
@@ -122,3 +122,18 @@ export const getConnections = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return rows;
   });
+
+type TransferInput = { phone: string; assignToEmail: string | null };
+export const transferContact = createServerFn({ method: "POST" })
+  .inputValidator((d: TransferInput) => d)
+  .handler(async ({ data }) => {
+    const { supabaseAdmin: _admin } = await import("@/integrations/supabase/client.server"); 
+    const supabaseAdmin = _admin as any;
+    const { error } = await supabaseAdmin
+      .from("user_contacts")
+      .update({ assigned_to: data.assignToEmail })
+      .eq("phone", data.phone);
+    if (error) throw new Error(error.message);
+    return { success: true };
+  });
+
