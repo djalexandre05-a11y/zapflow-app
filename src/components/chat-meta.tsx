@@ -239,52 +239,74 @@ export function ChatMeta({ account, allAccounts, onSwitchAccount }: { account: Z
     mutationFn: async (file: File) => {
       if (!selected) throw new Error("Selecione uma conversa");
 
-      const formData = new FormData();
-      formData.append("messaging_product", "whatsapp");
-      formData.append("file", file, file.name);
+      // O limite do Vercel para body é de 4.5MB. 
+      // Se o arquivo for menor que 4.2MB (maioria das fotos, áudios e documentos), 
+      // enviamos pelo backend, onde já sabíamos que funcionava perfeitamente para fotos.
+      // Se for maior, enviamos diretamente pelo navegador (que funciona para vídeos pesados e não bate no limite do Vercel).
+      if (file.size < 4.2 * 1024 * 1024) {
+        const formData = new FormData();
+        formData.append("accessToken", accessToken);
+        formData.append("phoneNumberId", phoneNumberId);
+        formData.append("to", selected.id);
+        formData.append("file", file);
 
-      // 1. Faz upload direto para o Meta a partir do navegador
-      const uploadRes = await fetch(`https://graph.facebook.com/v21.0/${phoneNumberId}/media`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: formData,
-      });
+        const res: any = await sendMediaFn({ data: formData as any });
 
-      const uploadBody = await uploadRes.json();
-      if (!uploadRes.ok) {
-        throw new Error(`Upload falhou: ${uploadBody.error?.message || "Erro desconhecido"}`);
+        const now = new Date().toISOString();
+        const typeStr = res._type ? `[${res._type}]` : "[document]";
+        const metaId = res?.messages?.[0]?.id || `${Date.now()}`;
+        
+        updateConv(selected.id, (c) => ({
+          ...c,
+          updatedAt: now,
+          messages: [...c.messages, { id: metaId, direction: "outgoing", message: `${typeStr}|${res._mediaId}|${file.name}`, createdAt: now }],
+        }));
+      } else {
+        const formData = new FormData();
+        formData.append("messaging_product", "whatsapp");
+        formData.append("file", file, file.name);
+
+        const uploadRes = await fetch(`https://graph.facebook.com/v21.0/${phoneNumberId}/media`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: formData,
+        });
+
+        const uploadBody = await uploadRes.json();
+        if (!uploadRes.ok) {
+          throw new Error(`Upload direto falhou: ${uploadBody.error?.message || "Erro desconhecido"}`);
+        }
+
+        const mediaId = uploadBody.id;
+
+        let type = "document";
+        if (file.type.startsWith("image/")) type = "image";
+        if (file.type.startsWith("video/")) type = "video";
+        if (file.type.startsWith("audio/")) type = "audio";
+
+        const res: any = await sendMediaByIdFn({ 
+          data: { 
+            accessToken, 
+            phoneNumberId, 
+            to: selected.id, 
+            mediaId, 
+            type, 
+            filename: file.name 
+          } 
+        });
+
+        const now = new Date().toISOString();
+        const typeStr = res._type ? `[${res._type}]` : "[document]";
+        const metaId = res?.messages?.[0]?.id || `${Date.now()}`;
+        
+        updateConv(selected.id, (c) => ({
+          ...c,
+          updatedAt: now,
+          messages: [...c.messages, { id: metaId, direction: "outgoing", message: `${typeStr}|${res._mediaId}|${file.name}`, createdAt: now }],
+        }));
       }
-
-      const mediaId = uploadBody.id;
-
-      let type = "document";
-      if (file.type.startsWith("image/")) type = "image";
-      if (file.type.startsWith("video/")) type = "video";
-      if (file.type.startsWith("audio/")) type = "audio";
-
-      // 2. Envia a mensagem através do backend apenas com o ID da mídia (evita limite 4.5MB Payload do Vercel)
-      const res: any = await sendMediaByIdFn({ 
-        data: { 
-          accessToken, 
-          phoneNumberId, 
-          to: selected.id, 
-          mediaId, 
-          type, 
-          filename: file.name 
-        } 
-      });
-
-      const now = new Date().toISOString();
-      const typeStr = res._type ? `[${res._type}]` : "[document]";
-      const metaId = res?.messages?.[0]?.id || `${Date.now()}`;
-      
-      updateConv(selected.id, (c) => ({
-        ...c,
-        updatedAt: now,
-        messages: [...c.messages, { id: metaId, direction: "outgoing", message: `${typeStr}|${res._mediaId}|${file.name}`, createdAt: now }],
-      }));
     },
     onSuccess: () => toast.success("Arquivo enviado"),
     onError: (e: Error) => toast.error(e.message),
