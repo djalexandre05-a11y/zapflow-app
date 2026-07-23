@@ -34,6 +34,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsLoading(false);
     });
 
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
     let interval: number;
 
     const checkSession = async (currentUser: User) => {
@@ -55,7 +61,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     return () => {
-      subscription.unsubscribe();
       if (interval) window.clearInterval(interval);
     };
   }, [user]);
