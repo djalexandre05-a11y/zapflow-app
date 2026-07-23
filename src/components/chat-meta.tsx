@@ -494,6 +494,16 @@ export function ChatMeta({ account, allAccounts, onSwitchAccount }: { account: Z
     })
     .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
 
+  const handleWaClick = (phone: string) => {
+    if (convs.some((c) => c.id === phone)) {
+      openConv(phone);
+    } else {
+      const now = new Date().toISOString();
+      setConvs((prev) => [{ id: phone, name: phone, messages: [], updatedAt: now, unread: 0 }, ...prev]);
+      setSelectedId(phone);
+    }
+  };
+
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <PageHeader
@@ -725,7 +735,7 @@ export function ChatMeta({ account, allAccounts, onSwitchAccount }: { account: Z
                           {/^(?:\[image\]|\[video\]|\[audio\]|\[document\])\|/.test(m.message) ? (
                             <MediaMessage text={m.message} accessToken={accessToken} />
                           ) : (
-                            <FormatMessage text={m.message} />
+                            <FormatMessage text={m.message} onWaClick={handleWaClick} />
                           )}
                         </div>
                         <div className={`mt-1 text-right text-[10px] ${mine ? "text-emerald-50/70" : "text-slate-500"}`}>
@@ -906,20 +916,31 @@ function MediaMessage({ text, accessToken }: { text: string; accessToken: string
   );
 }
 
-function FormatMessage({ text }: { text: string }) {
+function FormatMessage({ text, onWaClick }: { text: string; onWaClick?: (phone: string) => void }) {
   const urlRegex = /(https?:\/\/[^\s]+)/g;
   const parts = text.split(urlRegex);
   return (
     <>
-      {parts.map((part, i) =>
-        urlRegex.test(part) ? (
-          <a key={i} href={part} target="_blank" rel="noreferrer" className="underline hover:opacity-80">
-            {part}
-          </a>
-        ) : (
-          <span key={i}>{part}</span>
-        )
-      )}
+      {parts.map((part, i) => {
+        if (urlRegex.test(part)) {
+          if (part.includes("wa.me/") && onWaClick) {
+            const phone = part.split("wa.me/")[1].replace(/\D/g, "");
+            if (phone) {
+              return (
+                <span key={i} onClick={() => onWaClick(phone)} className="cursor-pointer underline text-blue-400 hover:text-blue-300" title="Abrir conversa">
+                  {part}
+                </span>
+              );
+            }
+          }
+          return (
+            <a key={i} href={part} target="_blank" rel="noreferrer" className="underline hover:opacity-80">
+              {part}
+            </a>
+          );
+        }
+        return <span key={i}>{part}</span>;
+      })}
     </>
   );
 }

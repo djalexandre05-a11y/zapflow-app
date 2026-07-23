@@ -223,6 +223,12 @@ function ChatPage({ apiKey }: { apiKey: string }) {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const handleWaClick = (phone: string) => {
+    const accountId = selected?.accountId || accounts[0]?._id;
+    if (!accountId) return;
+    setSelected({ id: phone, accountId });
+  };
+
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -526,7 +532,7 @@ function ChatPage({ apiKey }: { apiKey: string }) {
                   return (
                     <div key={m.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
                       <div className={`max-w-[70%] rounded-2xl px-3 py-2 text-sm ${mine ? "bg-emerald-600/90 text-white" : "bg-[#1a2b2e] text-slate-100"}`}>
-                        <div className="whitespace-pre-wrap break-words"><FormatMessage text={m.message || ""} /></div>
+                        <div className="whitespace-pre-wrap break-words"><FormatMessage text={m.message || ""} onWaClick={handleWaClick} /></div>
                         {m.attachments?.map((a) => {
                           if (a.type === "image") {
                             return <img key={a.id} src={a.url} alt="anexo" className="mt-2 max-h-64 rounded-lg object-contain" />;
@@ -666,21 +672,32 @@ function relTime(iso: string) {
   return new Date(iso).toLocaleDateString("pt-BR");
 }
 
-function FormatMessage({ text }: { text: string }) {
+function FormatMessage({ text, onWaClick }: { text: string; onWaClick?: (phone: string) => void }) {
   if (!text) return <span className="opacity-60">(sem texto)</span>;
   const urlRegex = /(https?:\/\/[^\s]+)/g;
   const parts = text.split(urlRegex);
   return (
     <>
-      {parts.map((part, i) =>
-        urlRegex.test(part) ? (
-          <a key={i} href={part} target="_blank" rel="noreferrer" className="underline hover:opacity-80">
-            {part}
-          </a>
-        ) : (
-          <span key={i}>{part}</span>
-        )
-      )}
+      {parts.map((part, i) => {
+        if (urlRegex.test(part)) {
+          if (part.includes("wa.me/") && onWaClick) {
+            const phone = part.split("wa.me/")[1].replace(/\D/g, "");
+            if (phone) {
+              return (
+                <span key={i} onClick={() => onWaClick(phone)} className="cursor-pointer underline text-blue-400 hover:text-blue-300" title="Abrir conversa">
+                  {part}
+                </span>
+              );
+            }
+          }
+          return (
+            <a key={i} href={part} target="_blank" rel="noreferrer" className="underline hover:opacity-80">
+              {part}
+            </a>
+          );
+        }
+        return <span key={i}>{part}</span>;
+      })}
     </>
   );
 }
