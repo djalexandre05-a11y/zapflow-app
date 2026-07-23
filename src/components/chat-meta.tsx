@@ -239,41 +239,59 @@ export function ChatMeta({ account, allAccounts, onSwitchAccount }: { account: Z
     mutationFn: async (file: File) => {
       if (!selected) throw new Error("Selecione uma conversa");
       
-      // Enviamos tudo diretamente pelo navegador para a Meta para contornar o limite de 4.5MB do Vercel.
-      const formData = new FormData();
-      formData.append("messaging_product", "whatsapp");
-      formData.append("file", file, file.name);
+      const isImage = file.type.startsWith("image/");
 
-      const uploadRes = await fetch(`https://graph.facebook.com/v21.0/${phoneNumberId}/media`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: formData,
-      });
+      if (!isImage) {
+        // Vídeos, áudios e documentos: Fazemos o upload direto pelo navegador 
+        // para contornar o limite de 4.5MB do Vercel, já que esses arquivos costumam ser pesados.
+        const formData = new FormData();
+        formData.append("messaging_product", "whatsapp");
+        formData.append("file", file, file.name);
 
-      const uploadBody = await uploadRes.json();
-      if (!uploadRes.ok) {
-        throw new Error(`Upload direto falhou: ${uploadBody.error?.message || "Erro desconhecido"}`);
+        const uploadRes = await fetch(`https://graph.facebook.com/v21.0/${phoneNumberId}/media`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: formData,
+        });
+
+        const uploadBody = await uploadRes.json();
+        if (!uploadRes.ok) {
+          throw new Error(`Upload falhou: ${uploadBody.error?.message || "Erro desconhecido"}`);
+        }
+
+        const mediaId = uploadBody.id;
+
+        let type = "document";
+        if (file.type.startsWith("video/")) type = "video";
+        if (file.type.startsWith("audio/")) type = "audio";
+
+        const res: any = await sendMediaByIdFn({ 
+          data: { accessToken, phoneNumberId, to: selected.id, mediaId, type, filename: file.name } 
+        });
+
+        const now = new Date().toISOString();
+        const typeStr = res._type ? `[${res._type}]` : "[document]";
+        const metaId = res?.messages?.[0]?.id || `${Date.now()}`;
+        
+        updateConv(selected.id, (c) => ({
+          ...c,
+          updatedAt: now,
+          messages: [...c.messages, { id: metaId, direction: "outgoing", message: `${typeStr}|${res._mediaId}|${file.name}`, createdAt: now }],
+        }));
+        return;
       }
 
-      const mediaId = uploadBody.id;
+      // Imagens: Enviamos pelo backend. Esse é EXATAMENTE o código original que funcionava antes
+      // das alterações.
+      const formData = new FormData();
+      formData.append("accessToken", accessToken);
+      formData.append("phoneNumberId", phoneNumberId);
+      formData.append("to", selected.id);
+      formData.append("file", file);
 
-      let type = "document";
-      if (file.type.startsWith("image/")) type = "image";
-      if (file.type.startsWith("video/")) type = "video";
-      if (file.type.startsWith("audio/")) type = "audio";
-
-      const res: any = await sendMediaByIdFn({ 
-        data: { 
-          accessToken, 
-          phoneNumberId, 
-          to: selected.id, 
-          mediaId, 
-          type, 
-          filename: file.name 
-        } 
-      });
+      const res: any = await sendMediaFn({ data: formData as any });
 
       const now = new Date().toISOString();
       const typeStr = res._type ? `[${res._type}]` : "[document]";
