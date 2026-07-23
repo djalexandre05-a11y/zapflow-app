@@ -4,7 +4,7 @@ type GetWorkspacesInput = { userId: string; email: string };
 export const getWorkspaces = createServerFn({ method: "POST" })
   .inputValidator((d: GetWorkspacesInput) => d)
   .handler(async ({ data }) => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin: _admin } = await import("@/integrations/supabase/client.server"); const supabaseAdmin = _admin as any;
     
     // Workspaces I own
     const { data: owned } = await supabaseAdmin
@@ -39,7 +39,7 @@ type CreateInput = { userId: string; name: string };
 export const createWorkspace = createServerFn({ method: "POST" })
   .inputValidator((d: CreateInput) => d)
   .handler(async ({ data }) => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin: _admin } = await import("@/integrations/supabase/client.server"); const supabaseAdmin = _admin as any;
     const { data: ws, error } = await supabaseAdmin
       .from("workspaces")
       .insert({ name: data.name, owner_id: data.userId })
@@ -53,7 +53,7 @@ type MemberInput = { workspaceId: string; email: string };
 export const addMember = createServerFn({ method: "POST" })
   .inputValidator((d: MemberInput) => d)
   .handler(async ({ data }) => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin: _admin } = await import("@/integrations/supabase/client.server"); const supabaseAdmin = _admin as any;
     const { error } = await supabaseAdmin
       .from("workspace_members")
       .insert({ workspace_id: data.workspaceId, user_email: data.email });
@@ -64,7 +64,7 @@ export const addMember = createServerFn({ method: "POST" })
 export const removeMember = createServerFn({ method: "POST" })
   .inputValidator((d: MemberInput) => d)
   .handler(async ({ data }) => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin: _admin } = await import("@/integrations/supabase/client.server"); const supabaseAdmin = _admin as any;
     const { error } = await supabaseAdmin
       .from("workspace_members")
       .delete()
@@ -78,7 +78,7 @@ type GetMembersInput = { workspaceId: string };
 export const getWorkspaceMembers = createServerFn({ method: "POST" })
   .inputValidator((d: GetMembersInput) => d)
   .handler(async ({ data }) => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin: _admin } = await import("@/integrations/supabase/client.server"); const supabaseAdmin = _admin as any;
     const { data: rows, error } = await supabaseAdmin
       .from("workspace_members")
       .select("*")
@@ -91,7 +91,7 @@ type SaveConnInput = { workspaceId: string; provider: string; name: string; acce
 export const saveConnection = createServerFn({ method: "POST" })
   .inputValidator((d: SaveConnInput) => d)
   .handler(async ({ data }) => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin: _admin } = await import("@/integrations/supabase/client.server"); const supabaseAdmin = _admin as any;
     const { data: conn, error } = await supabaseAdmin
       .from("workspace_connections")
       .insert({
@@ -113,7 +113,7 @@ type GetConnInput = { workspaceId: string };
 export const getConnections = createServerFn({ method: "POST" })
   .inputValidator((d: GetConnInput) => d)
   .handler(async ({ data }) => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin: _admin } = await import("@/integrations/supabase/client.server"); const supabaseAdmin = _admin as any;
     const { data: rows, error } = await supabaseAdmin
       .from("workspace_connections")
       .select("*")
