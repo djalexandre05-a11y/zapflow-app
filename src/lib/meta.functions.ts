@@ -309,7 +309,7 @@ export const metaBroadcast = createServerFn({ method: "POST" })
               [data.mediaType]: { id: data.mediaId, caption: data.message || "" },
             }),
           });
-          await logOutgoing(data.phoneNumberId, to, `[Mídia] ${data.message || ""}`, res);
+          await logOutgoing(data.phoneNumberId, to, `[${data.mediaType}]|${data.mediaId}|${data.message || ""}`, res);
         } else {
           const res = await metaFetch(data.accessToken, `/${data.phoneNumberId}/messages`, {
             method: "POST",
