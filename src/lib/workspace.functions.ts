@@ -113,7 +113,8 @@ type GetConnInput = { workspaceId: string };
 export const getConnections = createServerFn({ method: "POST" })
   .inputValidator((d: GetConnInput) => d)
   .handler(async ({ data }) => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin: _admin } = await import("@/integrations/supabase/client.server");
+    const supabaseAdmin = _admin as any;
     const { data: rows, error } = await supabaseAdmin
       .from("workspace_connections")
       .select("*")
