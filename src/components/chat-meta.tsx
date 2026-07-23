@@ -2,7 +2,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Loader2, Send, Search, MessageCircle, Plus, RefreshCw, Paperclip, Wand2, Mic, Trash2 } from "lucide-react";
+import { Loader2, Send, Search, MessageCircle, Plus, RefreshCw, Paperclip, Wand2, Mic, Trash2, Image as ImageIcon, Video, File as FileIcon, X } from "lucide-react";
+import imageCompression from "browser-image-compression";
 
 import { metaSendText, metaSendTemplate, metaListTemplates, metaSendMedia, metaSendMediaById } from "@/lib/meta.functions";
 import { fetchIncomingMessages, deleteIncomingConversation } from "@/lib/incoming.functions";
@@ -236,18 +237,46 @@ export function ChatMeta({ account, allAccounts, onSwitchAccount }: { account: Z
   });
 
   const mediaMut = useMutation({
-    mutationFn: async (file: File) => {
+    mutationFn: async (originalFile: File) => {
       if (!selected) throw new Error("Selecione uma conversa");
       
+      let file = originalFile;
+      let type = "document";
+      const ext = file.name.split('.').pop()?.toLowerCase() || '';
+      
+      const isImage = file.type.startsWith("image/") || ['png', 'jpg', 'jpeg', 'webp', 'gif'].includes(ext);
+      
+      if (isImage) {
+        type = "image";
+        // A API oficial do WhatsApp recomenda imagens de no máximo 5MB. 
+        // Além disso, a Vercel tem um limite de payload de 4.5MB.
+        // Portanto, se a imagem for maior que 4MB, nós vamos comprimi-la magicamente no navegador!
+        if (file.size > 4 * 1024 * 1024) {
+          toast.info("Comprimindo imagem pesada...");
+          try {
+            const options = {
+              maxSizeMB: 3.5, // Garante que ficará abaixo do limite da Vercel (4.5MB) e da Meta (5MB)
+              maxWidthOrHeight: 1920,
+              useWebWorker: true
+            };
+            const compressedBlob = await imageCompression(file, options);
+            file = new File([compressedBlob], file.name, {
+              type: compressedBlob.type,
+            });
+          } catch (error) {
+            console.error("Erro ao comprimir imagem", error);
+            // Se falhar a compressão, tenta enviar a original mesmo (vai cair no fallback de vídeo)
+          }
+        }
+      } else if (file.type.startsWith("video/") || ['mp4', 'webm', 'mov'].includes(ext)) {
+        type = "video";
+      } else if (file.type.startsWith("audio/") || ['mp3', 'ogg', 'wav'].includes(ext)) {
+        type = "audio";
+      }
+
       // Vercel tem limite de 4.5MB. Se o arquivo for menor que 4.2MB, enviamos SEMPRE pelo backend.
       // O backend funcionou perfeitamente para todas as imagens desde o início.
       const isSmallEnough = file.size < 4.2 * 1024 * 1024;
-      
-      let type = "document";
-      const ext = file.name.split('.').pop()?.toLowerCase() || '';
-      if (file.type.startsWith("image/") || ['png', 'jpg', 'jpeg', 'webp', 'gif'].includes(ext)) type = "image";
-      else if (file.type.startsWith("video/") || ['mp4', 'webm', 'mov'].includes(ext)) type = "video";
-      else if (file.type.startsWith("audio/") || ['mp3', 'ogg', 'wav'].includes(ext)) type = "audio";
 
       if (!isSmallEnough) {
         // Arquivos pesados (vídeos): Fazemos o upload direto pelo navegador 
