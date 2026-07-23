@@ -220,13 +220,14 @@ export function ChatMeta({ account }: { account: ZapAccount }) {
       if (!text) throw new Error("Mensagem vazia");
       return sendTextFn({ data: { accessToken, phoneNumberId, to: selected.id, message: text } });
     },
-    onSuccess: () => {
+    onSuccess: (res: any) => {
       const now = new Date().toISOString();
       const text = reply.trim();
+      const metaId = res?.messages?.[0]?.id || `${Date.now()}`;
       updateConv(selected!.id, (c) => ({
         ...c,
         updatedAt: now,
-        messages: [...c.messages, { id: `${Date.now()}`, direction: "outgoing", message: text, createdAt: now }],
+        messages: [...c.messages, { id: metaId, direction: "outgoing", message: text, createdAt: now }],
       }));
       setReply("");
     },
@@ -247,11 +248,12 @@ export function ChatMeta({ account }: { account: ZapAccount }) {
 
       const now = new Date().toISOString();
       const typeStr = res._type ? `[${res._type}]` : "[document]";
+      const metaId = res?.messages?.[0]?.id || `${Date.now()}`;
       
       updateConv(selected.id, (c) => ({
         ...c,
         updatedAt: now,
-        messages: [...c.messages, { id: `${Date.now()}`, direction: "outgoing", message: `${typeStr}|${res._mediaId}|${file.name}`, createdAt: now }],
+        messages: [...c.messages, { id: metaId, direction: "outgoing", message: `${typeStr}|${res._mediaId}|${file.name}`, createdAt: now }],
       }));
     },
     onSuccess: () => toast.success("Arquivo enviado"),
@@ -380,13 +382,14 @@ export function ChatMeta({ account }: { account: ZapAccount }) {
       if (!t) throw new Error("Escolha um template");
       return sendTplFn({ data: { accessToken, phoneNumberId, to: selected.id, templateName: t.name, language: t.language } });
     },
-    onSuccess: () => {
+    onSuccess: (res: any) => {
       const now = new Date().toISOString();
       const t = templates.find((x) => x.name === tplPick)!;
+      const metaId = res?.messages?.[0]?.id || `${Date.now()}`;
       updateConv(selected!.id, (c) => ({
         ...c,
         updatedAt: now,
-        messages: [...c.messages, { id: `${Date.now()}`, direction: "outgoing", message: t.body, createdAt: now }],
+        messages: [...c.messages, { id: metaId, direction: "outgoing", message: t.body, createdAt: now }],
       }));
       setTplPick("");
       toast.success("Template enviado");
