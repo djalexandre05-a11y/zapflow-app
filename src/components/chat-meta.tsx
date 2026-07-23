@@ -49,7 +49,7 @@ function saveConvs(phoneNumberId: string, list: Conv[]) {
   localStorage.setItem(storeKey(phoneNumberId), JSON.stringify(list));
 }
 
-export function ChatMeta({ account }: { account: ZapAccount }) {
+export function ChatMeta({ account, allAccounts, onSwitchAccount }: { account: ZapAccount; allAccounts?: ZapAccount[]; onSwitchAccount?: (id: string) => void }) {
   const phoneNumberId = account.phoneNumberId!;
   const accessToken = account.accessToken!;
   const wabaId = account.wabaId!;
@@ -420,12 +420,27 @@ export function ChatMeta({ account }: { account: ZapAccount }) {
         title="Chat"
         subtitle={`WhatsApp · ${account.name}`}
         right={
-          <Dialog open={newOpen} onOpenChange={setNewOpen}>
-            <DialogTrigger asChild>
-              <Button className="h-9 gap-2 bg-emerald-500 text-[#0b1416] hover:bg-emerald-400">
-                <Plus className="h-4 w-4" /> Nova conversa
-              </Button>
-            </DialogTrigger>
+          <div className="flex items-center gap-3">
+            {allAccounts && allAccounts.length > 1 && onSwitchAccount && (
+              <Select value={account.id} onValueChange={onSwitchAccount}>
+                <SelectTrigger className="h-9 w-[200px] border-white/10 bg-[#0f1a1c] text-xs">
+                  <SelectValue placeholder="Selecione o número" />
+                </SelectTrigger>
+                <SelectContent className="border-white/10 bg-[#0f1a1c] text-white">
+                  {allAccounts.map((a) => (
+                    <SelectItem key={a.id} value={a.id}>
+                      {a.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            <Dialog open={newOpen} onOpenChange={setNewOpen}>
+              <DialogTrigger asChild>
+                <Button className="h-9 gap-2 bg-emerald-500 text-[#0b1416] hover:bg-emerald-400">
+                  <Plus className="h-4 w-4" /> Nova conversa
+                </Button>
+              </DialogTrigger>
             <DialogContent className="max-w-md">
               <DialogHeader><DialogTitle>Iniciar conversa</DialogTitle></DialogHeader>
               
@@ -467,12 +482,9 @@ export function ChatMeta({ account }: { account: ZapAccount }) {
                   )}
                 </TabsContent>
               </Tabs>
-              
-              <div className="mt-2 text-center text-xs text-slate-500">
-                Fora da janela de 24h você só pode enviar um <b>template aprovado</b>.
-              </div>
             </DialogContent>
           </Dialog>
+          </div>
         }
       />
 

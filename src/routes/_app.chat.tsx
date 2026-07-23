@@ -25,7 +25,7 @@ import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/app-ui";
 import { ApiGate } from "@/components/api-gate";
 import { ChatMeta } from "@/components/chat-meta";
-import { useActiveAccount } from "@/lib/account";
+import { useActiveAccount, useAccounts } from "@/lib/account";
 
 
 export const Route = createFileRoute("/_app/chat")({
@@ -33,8 +33,15 @@ export const Route = createFileRoute("/_app/chat")({
 });
 
 function ChatRoute() {
-  const account = useActiveAccount();
-  if (account?.provider === "meta") return <ChatMeta account={account} />;
+  const { accounts } = useAccounts();
+  const [activeId, setActiveId] = useState<string | null>(null);
+  
+  const account = activeId ? accounts.find(a => a.id === activeId) : (accounts.find(a => a.active) || accounts[0] || null);
+  const metaAccounts = accounts.filter(a => a.provider === "meta");
+
+  if (account?.provider === "meta") {
+    return <ChatMeta account={account} allAccounts={metaAccounts} onSwitchAccount={setActiveId} />;
+  }
   return <ApiGate>{(apiKey) => <ChatPage apiKey={apiKey} />}</ApiGate>;
 }
 
