@@ -453,14 +453,13 @@ export const metaUpdateProfilePicture = createServerFn({ method: "POST" })
     const fileName = file.name || "profile.jpg";
 
     // 1. Descobrir o App ID a partir do token (necessário para Resumable Upload API)
-    const appRes = await fetch(`https://graph.facebook.com/v21.0/me?fields=id`, {
+    // GET /app retorna o app associado ao access token
+    const appRes = await fetch(`https://graph.facebook.com/v21.0/app`, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
     const appBody = await appRes.json();
-    // Para tokens de sistema/WABA, retorna o app associado via campo 'id'
-    // Fallback: tenta extrair do token debug
-    let appId: string = appBody?.id;
-    if (!appId) throw new Error("Não foi possível obter o App ID do token.");
+    const appId: string = appBody?.id;
+    if (!appId) throw new Error("Não foi possível obter o App ID do token. Verifique as permissões.");
 
     // 2. Criar sessão de upload (Resumable Upload API)
     const sessionRes = await fetch(
