@@ -333,7 +333,7 @@ export function FlowEditorProvider({
   const save = useCallback(async () => {
     setSaving(true);
     try {
-      const { error } = await supabase
+      const { error: flowError } = await supabase
         .from("flows")
         .update({
           name: state.name,
@@ -341,13 +341,42 @@ export function FlowEditorProvider({
           trigger_type: state.trigger_type,
           trigger_config: state.trigger_config as any,
           entry_node_id: state.entry_node_id,
-          nodes: state.nodes as any,
         })
         .eq("id", initialFlow.id);
       
-      if (error) {
-        throw new Error(error.message ?? "Save failed");
+      if (flowError) {
+        throw new Error(flowError.message ?? "Save failed");
       }
+
+      // Sync nodes: delete existing, then insert current
+      const { error: deleteError } = await supabase
+        .from("flow_nodes")
+        .delete()
+        .eq("flow_id", initialFlow.id);
+
+      if (deleteError) {
+        throw new Error(deleteError.message ?? "Save failed (nodes deletion)");
+      }
+
+      if (state.nodes.length > 0) {
+        const { error: insertError } = await supabase
+          .from("flow_nodes")
+          .insert(
+            state.nodes.map((n) => ({
+              flow_id: initialFlow.id,
+              node_key: n.node_key,
+              node_type: n.node_type,
+              config: n.config as any,
+              position_x: n.position_x ?? 0,
+              position_y: n.position_y ?? 0,
+            }))
+          );
+
+        if (insertError) {
+          throw new Error(insertError.message ?? "Save failed (nodes insertion)");
+        }
+      }
+
       setDirty(false);
       toast.success(t("saved"));
     } catch (err) {
@@ -356,7 +385,7 @@ export function FlowEditorProvider({
     } finally {
       setSaving(false);
     }
-  }, [initialFlow.id, state]);
+  }, [initialFlow.id, state, t]);
 
   // ---- Activate / Pause / Archive ----
   const setStatus = useCallback(
