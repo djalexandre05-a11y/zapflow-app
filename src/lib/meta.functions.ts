@@ -28,6 +28,7 @@ type SendTplInput = {
   templateName: string;
   language: string;
   bodyParams?: string[];
+  templateBody?: string;
 };
 type ListTplInput = { accessToken: string; wabaId: string };
 type CreateTplInput = {
@@ -50,6 +51,7 @@ type BroadcastInput = {
   mediaId?: string;
   mediaType?: "image" | "audio" | "video" | "document";
   intervalSeconds?: number;
+  templateBody?: string;
 };
 
 export async function logOutgoing(phone_number_id: string, from_number: string, message_text: string, res: any) {
@@ -113,7 +115,7 @@ export const metaSendTemplate = createServerFn({ method: "POST" })
       method: "POST",
       body: JSON.stringify({ messaging_product: "whatsapp", to, type: "template", template }),
     });
-    await logOutgoing(data.phoneNumberId, to, `[Template] ${data.templateName}`, res);
+    await logOutgoing(data.phoneNumberId, to, data.templateBody || `[Template] ${data.templateName}`, res);
     return res;
   });
 
@@ -298,7 +300,7 @@ export const metaBroadcast = createServerFn({ method: "POST" })
               },
             }),
           });
-          await logOutgoing(data.phoneNumberId, to, `[Template] ${data.templateName}`, res);
+          await logOutgoing(data.phoneNumberId, to, data.templateBody || `[Template] ${data.templateName}`, res);
         } else if (data.mediaId && data.mediaType) {
           const res = await metaFetch(data.accessToken, `/${data.phoneNumberId}/messages`, {
             method: "POST",

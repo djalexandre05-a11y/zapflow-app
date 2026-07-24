@@ -174,8 +174,10 @@ function BroadcastsMetaUI({ account }: { account: any }) {
       }
 
       let templateComponents: any[] | undefined = undefined;
+      let templateBody: string | undefined = undefined;
 
       if (templateName) {
+        templateBody = (selectedTpl as any)?.components?.find((c: any) => c.type === "BODY")?.text || `[Template] ${templateName}`;
         const headerComponent = (selectedTpl as any)?.components?.find((c: any) => c.type === "HEADER");
         if (headerComponent && ['IMAGE', 'VIDEO', 'DOCUMENT'].includes(headerComponent.format)) {
           if (!mediaId) {
@@ -200,6 +202,7 @@ function BroadcastsMetaUI({ account }: { account: any }) {
           numbers: finalNumbers,
           templateName: templateName || undefined,
           language: templateLang,
+          templateBody,
           components: templateComponents,
           message: fallback || undefined,
           mediaId,

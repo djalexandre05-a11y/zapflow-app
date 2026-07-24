@@ -512,6 +512,7 @@ export function ChatMeta({ account, allAccounts, onSwitchAccount }: { account: Z
           to: selected.id, 
           templateName: t.name, 
           language: t.language,
+          templateBody: t.body,
           components: templateComponents
         } 
       });
