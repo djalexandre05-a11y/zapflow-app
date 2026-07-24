@@ -335,6 +335,7 @@ function BroadcastsMetaUI({ account }: { account: any }) {
                     type="file"
                     id="broadcastFile"
                     className="hidden"
+                    accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx"
                     onChange={(e) => setFile(e.target.files?.[0] || null)}
                   />
                   <Button

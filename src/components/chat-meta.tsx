@@ -825,7 +825,7 @@ export function ChatMeta({ account, allAccounts, onSwitchAccount }: { account: Z
                     </div>
                     {templates.find(t => t.name === tplPick)?.headerFormat && ['IMAGE', 'VIDEO', 'DOCUMENT'].includes(templates.find(t => t.name === tplPick)!.headerFormat) && (
                       <div className="flex items-center gap-3 bg-white/5 rounded-lg p-2 border border-amber-500/20">
-                        <input type="file" id="tplChatFile" className="hidden" onChange={(e) => setTplFile(e.target.files?.[0] || null)} />
+                        <input type="file" id="tplChatFile" className="hidden" accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx" onChange={(e) => setTplFile(e.target.files?.[0] || null)} />
                         <Button type="button" variant="outline" onClick={() => document.getElementById("tplChatFile")?.click()} className="h-8 border-white/10 bg-black/20 text-slate-300 hover:bg-white/10">
                           <Paperclip className="mr-2 h-3.5 w-3.5" /> Anexar Mídia
                         </Button>
