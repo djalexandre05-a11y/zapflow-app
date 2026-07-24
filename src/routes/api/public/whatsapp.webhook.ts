@@ -80,10 +80,27 @@ export const Route = createFileRoute("/api/public/whatsapp/webhook")({
             await supabaseAdmin.from("wa_incoming").upsert(rows, { onConflict: "wa_message_id", ignoreDuplicates: true });
             
             // Call Flow Engine
-            const metaToken = process.env.META_ACCESS_TOKEN || "";
             for (const row of rows) {
               if (row.message_text && !row.message_text.startsWith("[ERRO")) {
-                await dispatchInboundToFlows(row.from_number, row.message_text, metaToken, row.phone_number_id);
+                // Fetch the client's specific Meta token and user_id from the DB
+                const { data: acc } = await (supabaseAdmin as any)
+                  .from("user_meta_accounts")
+                  .select("access_token, user_id")
+                  .eq("phone_number_id", row.phone_number_id)
+                  .eq("active", true)
+                  .maybeSingle();
+
+                // Fallback to env token if no account is found (for legacy support during migration)
+                const metaToken = acc?.access_token || process.env.META_ACCESS_TOKEN || "";
+                // If we don't have a specific user_id, flows won't work well, but we pass an empty string or something
+                const userId = acc?.user_id || "";
+
+                if (metaToken && userId) {
+                  await dispatchInboundToFlows(row.from_number, row.message_text, metaToken, row.phone_number_id, userId);
+                } else if (metaToken) {
+                  // Legacy fallback: pass "" as userId, it will probably not match any flow, but it won't crash
+                  await dispatchInboundToFlows(row.from_number, row.message_text, metaToken, row.phone_number_id, "");
+                }
               }
             }
           }

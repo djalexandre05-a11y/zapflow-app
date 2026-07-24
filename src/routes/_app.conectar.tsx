@@ -28,13 +28,20 @@ function NumbersPage() {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Num | null>(null);
 
+  const { user } = useAuth();
+
   const remove = async (id: string) => {
     try {
+      if (user) {
+        await supabase.from("user_meta_accounts").delete().eq("phone_number_id", id);
+      }
+
       const stored = localStorage.getItem("zapflow.accounts");
       let list = stored ? JSON.parse(stored) : [];
-      list = list.filter((a: any) => a.id !== id);
+      list = list.filter((a: any) => a.id !== id && a.phoneNumberId !== id);
       localStorage.setItem("zapflow.accounts", JSON.stringify(list));
       window.dispatchEvent(new Event("storage"));
+      
       toast.success("Número removido");
     } catch (e) {
       toast.error("Erro ao remover número");
@@ -180,12 +187,26 @@ function ConnectModal({ initial, onClose, onDone }: { initial: Num | null; onClo
       };
 
       try {
+        if (user) {
+          // Deactivate others
+          await supabase.from("user_meta_accounts").update({ active: false }).eq("user_id", user.id);
+          // Insert or update this one
+          await supabase.from("user_meta_accounts").upsert({
+            user_id: user.id,
+            name: newAccount.name,
+            phone_number_id: phoneNumberId,
+            waba_id: wabaId,
+            access_token: accessToken,
+            active: true
+          }, { onConflict: "user_id, phone_number_id" });
+        }
+
         const stored = localStorage.getItem("zapflow.accounts");
         let list = stored ? JSON.parse(stored) : [];
         list = list.map((a: any) => ({ ...a, active: false })); // deactivate others
         
         // Remove if exists
-        list = list.filter((a: any) => a.id !== id);
+        list = list.filter((a: any) => a.id !== id && a.phoneNumberId !== phoneNumberId);
         list.push(newAccount);
         
         localStorage.setItem("zapflow.accounts", JSON.stringify(list));
@@ -194,8 +215,8 @@ function ConnectModal({ initial, onClose, onDone }: { initial: Num | null; onClo
         onDone();
         navigate({ to: "/chat" });
       } catch (err: any) {
-        console.error("Erro no LocalStorage:", err);
-        toast.error("Erro ao salvar conta no dispositivo.");
+        console.error("Erro ao salvar conta:", err);
+        toast.error("Erro ao salvar conta.");
       }
     },
     onError: (e: any) => toast.error(e?.message || "Falha ao conectar"),

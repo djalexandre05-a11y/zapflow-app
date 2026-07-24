@@ -59,15 +59,15 @@ export async function advanceFlowRun(runId: string, incomingMessageText: string,
   }
 }
 
-export async function dispatchInboundToFlows(contactPhone: string, messageText: string, metaToken: string, phoneNumberId: string) {
-  const { data: activeRun } = await supabase.from('flow_runs').select('*').eq('contact_id', contactPhone).eq('status', 'active').maybeSingle();
+export async function dispatchInboundToFlows(contactPhone: string, messageText: string, metaToken: string, phoneNumberId: string, userId: string) {
+  const { data: activeRun } = await supabase.from('flow_runs').select('*').eq('contact_id', contactPhone).eq('status', 'active').eq('user_id', userId).maybeSingle();
 
   if (activeRun) {
     await advanceFlowRun(activeRun.id, messageText, metaToken, phoneNumberId);
     return true;
   }
 
-  const { data: flows } = await supabase.from('flows').select('*').eq('status', 'active').eq('trigger_type', 'keyword');
+  const { data: flows } = await supabase.from('flows').select('*').eq('status', 'active').eq('trigger_type', 'keyword').eq('user_id', userId);
   
   if (flows && flows.length > 0) {
     for (const flow of flows) {

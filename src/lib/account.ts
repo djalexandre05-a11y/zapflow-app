@@ -19,17 +19,51 @@ export function useAccounts() {
   const [accounts, setAccounts] = useState<ZapAccount[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const { user } = useAuth();
+
   useEffect(() => {
-    const fetchAccounts = () => {
+    const fetchAccounts = async () => {
       try {
+        let dbAccounts: ZapAccount[] = [];
+        
+        if (user) {
+          const { data, error } = await supabase
+            .from("user_meta_accounts")
+            .select("*")
+            .eq("user_id", user.id)
+            .order("created_at", { ascending: false });
+            
+          if (!error && data && data.length > 0) {
+            dbAccounts = data.map((d: any) => ({
+              id: d.id,
+              name: d.name,
+              provider: "meta",
+              apiKey: "",
+              active: d.active,
+              accessToken: d.access_token,
+              wabaId: d.waba_id,
+              phoneNumberId: d.phone_number_id,
+            }));
+          }
+        }
+
         const stored = localStorage.getItem("zapflow.accounts");
+        let localAccounts: ZapAccount[] = [];
         if (stored) {
-          setAccounts(JSON.parse(stored));
+          localAccounts = JSON.parse(stored);
+        }
+
+        const zernioAccounts = localAccounts.filter((a) => a.provider === "zernio");
+        const metaLocalAccounts = localAccounts.filter((a) => a.provider !== "zernio");
+
+        // Hybrid approach: prefer DB accounts, fallback to localStorage if DB is empty for Meta
+        if (dbAccounts.length > 0) {
+          setAccounts([...dbAccounts, ...zernioAccounts]);
         } else {
-          setAccounts([]);
+          setAccounts([...metaLocalAccounts, ...zernioAccounts]);
         }
       } catch (err) {
-        console.error("Failed to parse accounts", err);
+        console.error("Failed to fetch accounts", err);
       } finally {
         setLoading(false);
       }
@@ -38,7 +72,7 @@ export function useAccounts() {
     fetchAccounts();
     window.addEventListener("storage", fetchAccounts);
     return () => window.removeEventListener("storage", fetchAccounts);
-  }, []);
+  }, [user]);
 
   return { accounts, loading };
 }

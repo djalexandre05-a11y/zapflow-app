@@ -18,6 +18,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { useTheme } from "@/lib/theme";
 import { useAuth } from "@/components/auth-provider";
 import { LogOut } from "lucide-react";
+import { useAccounts } from "@/lib/account";
 
 export const Route = createFileRoute("/_app")({
   component: AppLayout,
@@ -43,8 +44,6 @@ function AppLayout() {
   const path = useRouterState({ select: (s) => s.location.pathname });
   const navigate = useNavigate();
   const { theme, toggle } = useTheme();
-  const [connected, setConnected] = useState(false);
-  const [activeName, setActiveName] = useState<string>("");
   const { user, isLoading, signOut } = useAuth();
 
   useEffect(() => {
@@ -52,21 +51,20 @@ function AppLayout() {
       navigate({ to: "/login" });
     }
   }, [user, isLoading, navigate]);
+  const { accounts } = useAccounts();
+  const [connected, setConnected] = useState(false);
+  const [activeName, setActiveName] = useState<string>("");
 
   useEffect(() => {
-    const check = () => {
-      try {
-        const list = JSON.parse(localStorage.getItem("zapflow.accounts") || "[]");
-        setConnected(Array.isArray(list) && list.length > 0);
-        const active = list.find((a: any) => a.active) || list[0];
-        setActiveName(active?.name || "");
-      } catch { setConnected(false); }
-    };
-    check();
-    window.addEventListener("storage", check);
-    const i = setInterval(check, 1500);
-    return () => { window.removeEventListener("storage", check); clearInterval(i); };
-  }, []);
+    if (accounts && accounts.length > 0) {
+      setConnected(true);
+      const active = accounts.find((a: any) => a.active) || accounts[0];
+      setActiveName(active?.name || "");
+    } else {
+      setConnected(false);
+      setActiveName("");
+    }
+  }, [accounts]);
 
   if (isLoading || !user) {
     return <div className="flex h-screen items-center justify-center bg-[#0b1416] text-slate-400">Carregando...</div>;
