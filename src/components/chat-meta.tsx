@@ -909,7 +909,7 @@ export function ChatMeta({ account, allAccounts, onSwitchAccount }: { account: Z
                               {m.status === 'sent' && <Check className="h-3 w-3 inline text-emerald-50/70" />}
                               {m.status === 'delivered' && <CheckCheck className="h-3 w-3 inline text-emerald-50/70" />}
                               {m.status === 'read' && <CheckCheck className="h-3 w-3 inline text-blue-400" />}
-                              {m.status === 'failed' && <AlertCircle className="h-3 w-3 inline text-red-400" title="Falha no envio" />}
+                              {m.status === 'failed' && <span title="Falha no envio"><AlertCircle className="h-3 w-3 inline text-red-400" /></span>}
                               {!m.status && <Clock className="h-3 w-3 inline text-emerald-50/50" />}
                             </span>
                           )}
