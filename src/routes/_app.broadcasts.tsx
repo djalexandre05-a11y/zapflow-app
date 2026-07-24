@@ -55,7 +55,7 @@ function BroadcastsRoute() {
 }
 
 type Contact = { id: string; name: string; phone: string; tags: string[] };
-type Tpl = { name: string; language: string; status?: string };
+type Tpl = { name: string; language: string; status?: string; headerFormat?: string; defaultMediaUrl?: string };
 const CONTACTS_KEY = "zapflow.contacts";
 const normalize = (n: string) => n.replace(/\D/g, "");
 
@@ -95,7 +95,17 @@ function BroadcastsMetaUI({ account }: { account: any }) {
     const raw: any = tplQ.data;
     const list: any[] = raw?.data ?? [];
     return list.filter((t) => String(t.status || "").toUpperCase() === "APPROVED")
-      .map((t) => ({ name: t.name, language: t.language, status: t.status, components: t.components }));
+      .map((t) => {
+        const headerComponent = t.components?.find((c: any) => c.type === "HEADER");
+        return {
+          name: t.name,
+          language: t.language,
+          status: t.status,
+          components: t.components,
+          headerFormat: headerComponent?.format || "NONE",
+          defaultMediaUrl: t.defaultMediaUrl,
+        };
+      });
   }, [tplQ.data]);
 
   const finalNumbers = useMemo(() => {
@@ -317,6 +327,47 @@ function BroadcastsMetaUI({ account }: { account: any }) {
                   <p className="mt-2 text-xs text-blue-400">✓ {templates.length} templates sincronizados com sucesso</p>
                 )}
               </div>
+
+              {/* Media indicator for selected template */}
+              {(() => {
+                const pickedTpl = templates.find(t => t.name === templateName);
+                if (!pickedTpl || !['IMAGE', 'VIDEO', 'DOCUMENT'].includes(pickedTpl.headerFormat || '')) return null;
+                const hasDefault = !!pickedTpl.defaultMediaUrl;
+                return (
+                  <div className={`mt-4 flex items-center gap-3 rounded-xl p-3 border ${hasDefault ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-amber-500/5 border-amber-500/20'}`}>
+                    <input
+                      type="file"
+                      id="broadcastTplFile"
+                      className="hidden"
+                      accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx"
+                      onChange={(e) => setFile(e.target.files?.[0] || null)}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="shrink-0 border-white/10 bg-black/20 text-slate-300 hover:bg-white/10 hover:text-white"
+                      onClick={() => document.getElementById("broadcastTplFile")?.click()}
+                    >
+                      <Paperclip className="mr-2 h-4 w-4" />
+                      {hasDefault ? 'Trocar Mídia' : 'Anexar Mídia'}
+                    </Button>
+                    <div className="flex-1 min-w-0">
+                      {file ? (
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm text-slate-300 truncate">{file.name}</span>
+                          <button type="button" onClick={() => setFile(null)} className="shrink-0 text-slate-400 hover:text-white p-1 rounded">
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      ) : hasDefault ? (
+                        <span className="text-xs text-emerald-400">✓ Mídia já vinculada no template. O disparo vai direto sem precisar anexar arquivo. Clique para substituir (opcional).</span>
+                      ) : (
+                        <span className="text-xs text-amber-400">Este template exige uma mídia ({pickedTpl.headerFormat}) para ser enviado.</span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
 
               <div className="mt-6 space-y-2">
                 <Label className="flex items-center justify-between text-xs uppercase tracking-wider text-slate-400">
