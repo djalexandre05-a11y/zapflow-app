@@ -31,7 +31,7 @@ type SendTplInput = {
   templateBody?: string;
   components?: any[];
 };
-type ListTplInput = { accessToken: string; wabaId: string };
+type ListTplInput = { accessToken: string; wabaId: string; phoneNumberId?: string };
 type CreateTplInput = {
   accessToken: string;
   wabaId: string;
@@ -125,9 +125,9 @@ export const metaSendTemplate = createServerFn({ method: "POST" })
     const header = data.components?.find((c: any) => c.type === "header");
     if (header && header.parameters?.[0]) {
       const p = header.parameters[0];
-      if (p.type === "image" && p.image?.id) { tplMediaId = p.image.id; tplMediaType = "image"; }
-      else if (p.type === "video" && p.video?.id) { tplMediaId = p.video.id; tplMediaType = "video"; }
-      else if (p.type === "document" && p.document?.id) { tplMediaId = p.document.id; tplMediaType = "document"; }
+      if (p.type === "image" && (p.image?.id || p.image?.link)) { tplMediaId = p.image.id || p.image.link; tplMediaType = "image"; }
+      else if (p.type === "video" && (p.video?.id || p.video?.link)) { tplMediaId = p.video.id || p.video.link; tplMediaType = "video"; }
+      else if (p.type === "document" && (p.document?.id || p.document?.link)) { tplMediaId = p.document.id || p.document.link; tplMediaType = "document"; }
     }
 
     let logText = data.templateBody || `[Template] ${data.templateName}`;
@@ -226,10 +226,31 @@ export const metaListTemplates = createServerFn({ method: "POST" })
     return d;
   })
   .handler(async ({ data }) => {
-    return metaFetch(
+    const res = await metaFetch(
       data.accessToken,
       `/${data.wabaId}/message_templates?fields=name,language,status,category,components&limit=200`,
     );
+    
+    if (res.data && data.phoneNumberId) {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const { data: defaults } = await (supabaseAdmin as any)
+        .from("template_media_defaults")
+        .select("template_name, media_url, media_type")
+        .eq("phone_number_id", data.phoneNumberId);
+        
+      if (defaults && defaults.length > 0) {
+        const defMap = new Map(defaults.map((d: any) => [d.template_name, d]));
+        res.data = res.data.map((tpl: any) => {
+          const d = defMap.get(tpl.name);
+          if (d) {
+            return { ...tpl, defaultMediaUrl: (d as any).media_url, defaultMediaType: (d as any).media_type };
+          }
+          return tpl;
+        });
+      }
+    }
+    
+    return res;
   });
 
 export const metaCreateTemplate = createServerFn({ method: "POST" })
@@ -277,6 +298,56 @@ export const metaUploadMedia = createServerFn({ method: "POST" })
     return { mediaId: uploadBody.id };
   });
 
+export const saveTemplateDefaultMedia = createServerFn({ method: "POST" })
+  .inputValidator((d: any) => d)
+  .handler(async ({ data }: { data: any }) => {
+    const isForm = data instanceof FormData;
+    const phoneNumberId = isForm ? data.get("phoneNumberId") as string : data.phoneNumberId;
+    const templateName = isForm ? data.get("templateName") as string : data.templateName;
+    const file = (isForm ? data.get("file") : data.file) as File;
+
+    if (!phoneNumberId || !templateName || !file) throw new Error("Dados incompletos para salvar mídia padrão");
+
+    let type = "document";
+    if (file.type.startsWith("image/")) type = "image";
+    if (file.type.startsWith("video/")) type = "video";
+    if (file.type.startsWith("audio/")) type = "audio";
+
+    // Upload file to Supabase Storage
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    
+    // Generate unique filename
+    const ext = file.name.split('.').pop();
+    const filename = `${phoneNumberId}/${templateName}_${Date.now()}.${ext}`;
+    
+    const { data: uploadData, error: uploadError } = await supabaseAdmin
+      .storage
+      .from("zapflow_media")
+      .upload(filename, file, { contentType: file.type, upsert: true });
+      
+    if (uploadError) throw new Error(`Erro ao fazer upload da mídia: ${uploadError.message}`);
+    
+    const { data: publicUrlData } = supabaseAdmin
+      .storage
+      .from("zapflow_media")
+      .getPublicUrl(filename);
+      
+    const mediaUrl = publicUrlData.publicUrl;
+
+    // Save to database
+    const { error: dbError } = await (supabaseAdmin as any)
+      .from("template_media_defaults")
+      .upsert({
+        phone_number_id: phoneNumberId,
+        template_name: templateName,
+        media_url: mediaUrl,
+        media_type: type
+      }, { onConflict: "phone_number_id, template_name" });
+      
+    if (dbError) throw new Error(`Erro ao salvar no banco: ${dbError.message}`);
+    
+    return { success: true, mediaUrl, type };
+  });
 
 
 export const metaDeleteTemplate = createServerFn({ method: "POST" })
@@ -321,9 +392,18 @@ export const metaBroadcast = createServerFn({ method: "POST" })
             }),
           });
           
+          let tplMediaId: string | undefined;
+          let tplMediaType: string | undefined;
+          const header = data.components?.find((c: any) => c.type === "header");
+          if (header?.parameters?.[0]) {
+            const p = header.parameters[0];
+            if (p.type === "image" && (p.image?.id || p.image?.link)) { tplMediaId = p.image.id || p.image.link; tplMediaType = "image"; }
+            else if (p.type === "video" && (p.video?.id || p.video?.link)) { tplMediaId = p.video.id || p.video.link; tplMediaType = "video"; }
+            else if (p.type === "document" && (p.document?.id || p.document?.link)) { tplMediaId = p.document.id || p.document.link; tplMediaType = "document"; }
+          }
           let logText = data.templateBody || `[Template] ${data.templateName}`;
-          if (data.mediaId && data.mediaType) {
-            logText = `[${data.mediaType}]|${data.mediaId}|${logText}`;
+          if (tplMediaId) {
+            logText = `[${tplMediaType}]|${tplMediaId}|${logText}`;
           }
           
           await logOutgoing(data.phoneNumberId, to, logText, res);

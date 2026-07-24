@@ -1,0 +1,11 @@
+version: '3.8'
+
+services:
+  zapflow-web:
+    build: .
+    container_name: zapflow_web
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    # volumes:
+    #   - ./dist:/usr/share/nginx/html # Se preferir injetar a pasta dist localmente

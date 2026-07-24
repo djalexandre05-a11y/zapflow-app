@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { metaListTemplates, metaCreateTemplate, metaDeleteTemplate } from "@/lib/meta.functions";
+import { metaListTemplates, metaCreateTemplate, metaDeleteTemplate, saveTemplateDefaultMedia } from "@/lib/meta.functions";
 import type { ZapAccount } from "@/lib/account";
 
 type Tpl = {
@@ -18,6 +18,8 @@ type Tpl = {
   category: string;
   language: string;
   components?: Array<{ type: string; format?: string; text?: string }>;
+  defaultMediaUrl?: string;
+  defaultMediaType?: string;
 };
 
 const CATEGORIES = ["MARKETING", "UTILITY", "AUTHENTICATION"] as const;
@@ -37,6 +39,7 @@ export function TemplatesMeta({ account }: { account: ZapAccount }) {
   const listFn = useServerFn(metaListTemplates);
   const createFn = useServerFn(metaCreateTemplate);
   const deleteFn = useServerFn(metaDeleteTemplate);
+  const saveMediaFn = useServerFn(saveTemplateDefaultMedia);
 
   const [name, setName] = useState("");
   const [category, setCategory] = useState<(typeof CATEGORIES)[number]>("MARKETING");
@@ -58,10 +61,35 @@ export function TemplatesMeta({ account }: { account: ZapAccount }) {
     }
   };
 
+  const defaultMediaInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingTemplate, setUploadingTemplate] = useState<string | null>(null);
+
+  const handleDefaultMediaChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !uploadingTemplate) return;
+    
+    const toastId = toast.loading(`Vinculando mídia ao template ${uploadingTemplate}...`);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("phoneNumberId", account.phoneNumberId!);
+      formData.append("templateName", uploadingTemplate);
+      
+      await saveMediaFn({ data: formData });
+      toast.success("Mídia vinculada com sucesso!", { id: toastId });
+      tplQ.refetch();
+    } catch (err: any) {
+      toast.error(err.message, { id: toastId });
+    } finally {
+      setUploadingTemplate(null);
+      if (defaultMediaInputRef.current) defaultMediaInputRef.current.value = "";
+    }
+  };
+
   const tplQ = useQuery({
     queryKey: ["meta-tpl-page", account.wabaId],
-    queryFn: () => listFn({ data: { accessToken: account.accessToken!, wabaId: account.wabaId! } }),
-    enabled: !!account.wabaId && !!account.accessToken,
+    queryFn: () => listFn({ data: { accessToken: account.accessToken!, wabaId: account.wabaId!, phoneNumberId: account.phoneNumberId! } }),
+    enabled: !!account.accessToken && !!account.wabaId,
   });
   const templates: Tpl[] = ((tplQ.data as any)?.data ?? []) as Tpl[];
 
@@ -321,6 +349,9 @@ export function TemplatesMeta({ account }: { account: ZapAccount }) {
                   <tbody>
                     {templates.map((t) => {
                       const bodyText = t.components?.find((c) => c.type === "BODY")?.text || "";
+                      const headerComp = t.components?.find((c) => c.type === "HEADER");
+                      const requiresMedia = headerComp && ["IMAGE", "VIDEO", "DOCUMENT"].includes(headerComp.format || "");
+                      
                       return (
                         <tr key={`${t.name}-${t.language}`} className="border-b border-white/5 align-top">
                           <td className="px-3 py-3">
@@ -334,7 +365,13 @@ export function TemplatesMeta({ account }: { account: ZapAccount }) {
                               {STATUS_LABEL[t.status.toUpperCase()] ?? t.status}
                             </span>
                           </td>
-                          <td className="px-3 py-3 text-right">
+                          <td className="px-3 py-3 text-right space-x-2">
+                            {requiresMedia && (
+                              <button onClick={() => { setUploadingTemplate(t.name); defaultMediaInputRef.current?.click(); }}
+                                className={`inline-flex items-center gap-1 rounded px-2 py-1 text-xs ${t.defaultMediaUrl ? "text-emerald-400 hover:bg-emerald-500/10" : "text-sky-400 hover:bg-sky-500/10"}`}>
+                                {t.defaultMediaUrl ? "Mídia Vinculada" : "Vincular Mídia"}
+                              </button>
+                            )}
                             <button onClick={() => { if (confirm(`Excluir "${t.name}"?`)) deleteMut.mutate(t.name); }}
                               className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs text-rose-400 hover:bg-rose-500/10">
                               <Trash2 className="h-3.5 w-3.5" /> Excluir
@@ -347,6 +384,7 @@ export function TemplatesMeta({ account }: { account: ZapAccount }) {
                 </table>
               </div>
             )}
+            <input type="file" ref={defaultMediaInputRef} onChange={handleDefaultMediaChange} className="hidden" accept="image/*,video/*,.pdf,.doc,.docx" />
           </Card>
         </div>
       </div>

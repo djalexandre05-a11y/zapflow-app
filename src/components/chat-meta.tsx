@@ -167,7 +167,7 @@ export function ChatMeta({ account, allAccounts, onSwitchAccount }: { account: Z
 
   const tplQ = useQuery({
     queryKey: ["meta-tpl", wabaId],
-    queryFn: () => listTplFn({ data: { accessToken, wabaId } }),
+    queryFn: () => listTplFn({ data: { accessToken, wabaId, phoneNumberId } }),
     enabled: !!wabaId,
     staleTime: 60_000,
   });
@@ -179,7 +179,13 @@ export function ChatMeta({ account, allAccounts, onSwitchAccount }: { account: Z
       .map((t: any) => {
         const body = t.components?.find((c: any) => c.type === "BODY")?.text || `[template] ${t.name}`;
         const headerComponent = t.components?.find((c: any) => c.type === "HEADER");
-        return { name: t.name as string, language: t.language as string, body, headerFormat: headerComponent?.format || "NONE" };
+        return { 
+          name: t.name as string, 
+          language: t.language as string, 
+          body, 
+          headerFormat: headerComponent?.format || "NONE",
+          defaultMediaUrl: (t as any).defaultMediaUrl
+        };
       });
   }, [tplQ.data]);
 
@@ -466,10 +472,34 @@ export function ChatMeta({ account, allAccounts, onSwitchAccount }: { account: Z
       
       let mediaId: string | undefined;
       const requiresMedia = ['IMAGE', 'VIDEO', 'DOCUMENT'].includes(t.headerFormat);
+      const defaultUrl = (t as any).defaultMediaUrl;
       
-      if (requiresMedia) {
-        if (!tplFile) throw new Error(`O template exige uma mídia (${t.headerFormat}). Anexe o arquivo.`);
+      if (requiresMedia && !defaultUrl) {
+        if (!tplFile) throw new Error(`O template exige uma mídia (${t.headerFormat}). Anexe o arquivo ou vincule na aba de Templates.`);
         
+        const isSmallEnough = tplFile.size < 4.2 * 1024 * 1024;
+        if (!isSmallEnough) {
+          const formData = new FormData();
+          formData.append("messaging_product", "whatsapp");
+          formData.append("file", tplFile, tplFile.name);
+          const uploadRes = await fetch(`https://graph.facebook.com/v21.0/${phoneNumberId}/media`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${accessToken}` },
+            body: formData,
+          });
+          const uploadBody = await uploadRes.json();
+          if (!uploadRes.ok) throw new Error(`Upload falhou: ${uploadBody.error?.message || "Erro desconhecido"}`);
+          mediaId = uploadBody.id;
+        } else {
+          const formData = new FormData();
+          formData.append("accessToken", accessToken);
+          formData.append("phoneNumberId", phoneNumberId);
+          formData.append("file", tplFile);
+          const uploadRes = await uploadFn({ data: formData as any });
+          mediaId = (uploadRes as any).mediaId;
+        }
+      } else if (requiresMedia && defaultUrl && tplFile) {
+        // Se a pessoa anexar arquivo, a gente sobrepõe a mídia padrão!
         const isSmallEnough = tplFile.size < 4.2 * 1024 * 1024;
         if (!isSmallEnough) {
           const formData = new FormData();
@@ -494,13 +524,13 @@ export function ChatMeta({ account, allAccounts, onSwitchAccount }: { account: Z
       }
 
       let templateComponents: any[] | undefined = undefined;
-      if (mediaId) {
+      if (mediaId || defaultUrl) {
         templateComponents = [{
           type: "header",
           parameters: [
             {
               type: t.headerFormat.toLowerCase(),
-              [t.headerFormat.toLowerCase()]: { id: mediaId }
+              [t.headerFormat.toLowerCase()]: mediaId ? { id: mediaId } : { link: defaultUrl }
             }
           ]
         }];

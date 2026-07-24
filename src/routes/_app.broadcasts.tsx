@@ -180,15 +180,16 @@ function BroadcastsMetaUI({ account }: { account: any }) {
         templateBody = (selectedTpl as any)?.components?.find((c: any) => c.type === "BODY")?.text || `[Template] ${templateName}`;
         const headerComponent = (selectedTpl as any)?.components?.find((c: any) => c.type === "HEADER");
         if (headerComponent && ['IMAGE', 'VIDEO', 'DOCUMENT'].includes(headerComponent.format)) {
-          if (!mediaId) {
-            throw new Error(`O template ${templateName} exige uma mídia (${headerComponent.format}). Anexe o arquivo abaixo.`);
+          const defaultUrl = (selectedTpl as any)?.defaultMediaUrl;
+          if (!mediaId && !defaultUrl) {
+            throw new Error(`O template ${templateName} exige uma mídia (${headerComponent.format}). Anexe o arquivo abaixo ou vincule uma mídia padrão na aba de Templates.`);
           }
           templateComponents = [{
             type: "header",
             parameters: [
               {
                 type: headerComponent.format.toLowerCase(),
-                [headerComponent.format.toLowerCase()]: { id: mediaId }
+                [headerComponent.format.toLowerCase()]: mediaId ? { id: mediaId } : { link: defaultUrl }
               }
             ]
           }];
