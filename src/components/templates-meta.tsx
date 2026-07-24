@@ -244,7 +244,6 @@ export function TemplatesMeta({ account }: { account: ZapAccount }) {
 
           {/* Celularzinho de Preview */}
           <div className="hidden lg:flex sticky top-6 flex-col h-[600px] w-full max-w-[350px] rounded-[2.5rem] border-[12px] border-[#0b1416] bg-slate-100 overflow-hidden shadow-2xl relative">
-            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-6 bg-[#0b1416] rounded-b-xl z-20"></div>
             <div className="bg-[#075e54] px-4 pt-8 pb-3 text-white font-semibold flex items-center gap-3 shadow-md z-10">
               <div className="h-8 w-8 rounded-full bg-slate-300"></div>
               <div>
