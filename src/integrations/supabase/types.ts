@@ -23,6 +23,7 @@ export type Database = {
           phone_number_id: string
           received_at: string
           wa_message_id: string | null
+          status: string | null
         }
         Insert: {
           from_name?: string | null
@@ -32,6 +33,7 @@ export type Database = {
           phone_number_id: string
           received_at?: string
           wa_message_id?: string | null
+          status?: string | null
         }
         Update: {
           from_name?: string | null
@@ -41,6 +43,7 @@ export type Database = {
           phone_number_id?: string
           received_at?: string
           wa_message_id?: string | null
+          status?: string | null
         }
         Relationships: []
       }

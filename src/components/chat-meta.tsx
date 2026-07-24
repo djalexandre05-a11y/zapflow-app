@@ -2,7 +2,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Loader2, Send, Search, MessageCircle, Plus, RefreshCw, Paperclip, Wand2, Mic, Trash2, Image as ImageIcon, Video, File as FileIcon, X, Camera } from "lucide-react";
+import { Loader2, Send, Search, MessageCircle, Plus, RefreshCw, Paperclip, Wand2, Mic, Trash2, Image as ImageIcon, Video, File as FileIcon, X, Camera, Check, CheckCheck, AlertCircle, Clock } from "lucide-react";
 import imageCompression from "browser-image-compression";
 
 import { metaSendText, metaSendTemplate, metaListTemplates, metaSendMedia, metaSendMediaById, metaUploadMedia, metaUpdateProfilePicture, metaGetBusinessProfile } from "@/lib/meta.functions";
@@ -31,6 +31,7 @@ type Msg = {
   direction: "incoming" | "outgoing";
   message: string;
   createdAt: string;
+  status?: string | null;
 };
 type Conv = {
   id: string; // phone number sem sinais
@@ -138,7 +139,7 @@ export function ChatMeta({ account, allAccounts, onSwitchAccount }: { account: Z
       try {
         const since = localStorage.getItem(sinceKey) || undefined;
         const res: any = await fetchInFn({ data: { phoneNumberId, sinceIso: since } });
-        const rows: Array<{ id: string; from_number: string; from_name: string | null; message_text: string | null; wa_message_id: string; received_at: string }> = res?.messages ?? [];
+        const rows: Array<{ id: string; from_number: string; from_name: string | null; message_text: string | null; wa_message_id: string; received_at: string; status?: string | null }> = res?.messages ?? [];
         if (!alive || rows.length === 0) return;
         setConvs((prev) => {
           const map = new Map(prev.map((c) => [c.id, c] as const));
@@ -153,12 +154,24 @@ export function ChatMeta({ account, allAccounts, onSwitchAccount }: { account: Z
               createdAt: r.received_at,
             };
             if (existing) {
-              if (existing.messages.some((m) => m.id === msg.id)) continue;
               const isOpen = selectedIdRef.current === phone;
+              
+              // Se já existe e a mensagem existe, talvez só mudou o status
+              const msgIdx = existing.messages.findIndex((m) => m.id === msg.id);
+              if (msgIdx !== -1) {
+                // Atualiza o status se for diferente (só para mensagens enviadas por nós)
+                if (existing.messages[msgIdx].status !== r.status && msg.direction === "outgoing") {
+                  const newMsgs = [...existing.messages];
+                  newMsgs[msgIdx] = { ...newMsgs[msgIdx], status: r.status };
+                  map.set(phone, { ...existing, messages: newMsgs });
+                }
+                continue;
+              }
+
               map.set(phone, {
                 ...existing,
                 name: existing.name === existing.id ? (r.from_name || existing.name) : existing.name,
-                messages: [...existing.messages, msg].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()),
+                messages: [...existing.messages, { ...msg, status: r.status }].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()),
                 updatedAt: r.received_at,
                 unread: isOpen ? 0 : (existing.unread || 0) + 1,
               });
@@ -167,7 +180,7 @@ export function ChatMeta({ account, allAccounts, onSwitchAccount }: { account: Z
               map.set(phone, {
                 id: phone,
                 name: r.from_name || phone,
-                messages: [msg],
+                messages: [{ ...msg, status: r.status }],
                 updatedAt: r.received_at,
                 unread: isOpen ? 0 : 1,
               });
@@ -889,8 +902,17 @@ export function ChatMeta({ account, allAccounts, onSwitchAccount }: { account: Z
                             <FormatMessage text={m.message} onWaClick={handleWaClick} />
                           )}
                         </div>
-                        <div className={`mt-1 text-right text-[10px] ${mine ? "text-emerald-50/70" : "text-slate-500"}`}>
+                        <div className={`mt-1 flex items-center justify-end gap-1 text-[10px] ${mine ? "text-emerald-50/70" : "text-slate-500"}`}>
                           {new Date(m.createdAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                          {mine && (
+                            <span>
+                              {m.status === 'sent' && <Check className="h-3 w-3 inline text-emerald-50/70" />}
+                              {m.status === 'delivered' && <CheckCheck className="h-3 w-3 inline text-emerald-50/70" />}
+                              {m.status === 'read' && <CheckCheck className="h-3 w-3 inline text-blue-400" />}
+                              {m.status === 'failed' && <AlertCircle className="h-3 w-3 inline text-red-400" title="Falha no envio" />}
+                              {!m.status && <Clock className="h-3 w-3 inline text-emerald-50/50" />}
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
