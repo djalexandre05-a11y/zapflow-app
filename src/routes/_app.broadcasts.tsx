@@ -55,7 +55,7 @@ function BroadcastsRoute() {
 }
 
 type Contact = { id: string; name: string; phone: string; tags: string[] };
-type Tpl = { name: string; language: string; status?: string; headerFormat?: string; defaultMediaUrl?: string };
+type Tpl = { name: string; language: string; status?: string; headerFormat?: string; defaultMediaUrl?: string; headerHandle?: string };
 const CONTACTS_KEY = "zapflow.contacts";
 const normalize = (n: string) => n.replace(/\D/g, "");
 
@@ -97,13 +97,16 @@ function BroadcastsMetaUI({ account }: { account: any }) {
     return list.filter((t) => String(t.status || "").toUpperCase() === "APPROVED")
       .map((t) => {
         const headerComponent = t.components?.find((c: any) => c.type === "HEADER");
+        // header_handle é o media ID já salvo na Meta quando o template foi criado
+        const headerHandle = headerComponent?.example?.header_handle?.[0] || null;
         return {
           name: t.name,
           language: t.language,
           status: t.status,
           components: t.components,
           headerFormat: headerComponent?.format || "NONE",
-          defaultMediaUrl: t.defaultMediaUrl,
+          defaultMediaUrl: t.defaultMediaUrl || null,
+          headerHandle,
         };
       });
   }, [tplQ.data]);
@@ -190,19 +193,28 @@ function BroadcastsMetaUI({ account }: { account: any }) {
         templateBody = (selectedTpl as any)?.components?.find((c: any) => c.type === "BODY")?.text || `[Template] ${templateName}`;
         const headerComponent = (selectedTpl as any)?.components?.find((c: any) => c.type === "HEADER");
         if (headerComponent && ['IMAGE', 'VIDEO', 'DOCUMENT'].includes(headerComponent.format)) {
-          const defaultUrl = (selectedTpl as any)?.defaultMediaUrl;
-          if (!mediaId && !defaultUrl) {
+          const defaultUrl = selectedTpl?.defaultMediaUrl;
+          const headerHandle = selectedTpl?.headerHandle;
+          
+          // Se já tem handle/mídia salva no template da Meta → usa direto
+          if (!mediaId && headerHandle) {
+            mediaId = headerHandle;
+          } else if (!mediaId && !defaultUrl && !headerHandle) {
             throw new Error(`O template ${templateName} exige uma mídia (${headerComponent.format}). Anexe o arquivo abaixo ou vincule uma mídia padrão na aba de Templates.`);
           }
-          templateComponents = [{
-            type: "header",
-            parameters: [
-              {
-                type: headerComponent.format.toLowerCase(),
-                [headerComponent.format.toLowerCase()]: mediaId ? { id: mediaId } : { link: defaultUrl }
-              }
-            ]
-          }];
+          
+          const effectiveMedia = mediaId || defaultUrl;
+          if (effectiveMedia) {
+            templateComponents = [{
+              type: "header",
+              parameters: [
+                {
+                  type: headerComponent.format.toLowerCase(),
+                  [headerComponent.format.toLowerCase()]: mediaId ? { id: mediaId } : { link: defaultUrl }
+                }
+              ]
+            }];
+          }
         }
       }
 
@@ -332,7 +344,17 @@ function BroadcastsMetaUI({ account }: { account: any }) {
               {(() => {
                 const pickedTpl = templates.find(t => t.name === templateName);
                 if (!pickedTpl || !['IMAGE', 'VIDEO', 'DOCUMENT'].includes(pickedTpl.headerFormat || '')) return null;
+                const hasHandle = !!pickedTpl.headerHandle;
                 const hasDefault = !!pickedTpl.defaultMediaUrl;
+                
+                // Se já tem mídia salva no template da Meta → vai direto!
+                if (hasHandle && !file) return (
+                  <div className="mt-4 flex items-center gap-2 rounded-xl bg-emerald-500/5 border border-emerald-500/20 p-3">
+                    <span className="text-xs text-emerald-400">✓ Mídia já salva no template da Meta — o disparo vai direto sem precisar anexar nada.</span>
+                    <input type="file" id="broadcastTplFile" className="hidden" accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx" onChange={(e) => setFile(e.target.files?.[0] || null)} />
+                    <button onClick={() => document.getElementById("broadcastTplFile")?.click()} className="ml-auto shrink-0 text-xs text-slate-500 hover:text-slate-300 underline">substituir</button>
+                  </div>
+                );
                 return (
                   <div className={`mt-4 flex items-center gap-3 rounded-xl p-3 border ${hasDefault ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-amber-500/5 border-amber-500/20'}`}>
                     <input
@@ -360,7 +382,7 @@ function BroadcastsMetaUI({ account }: { account: any }) {
                           </button>
                         </div>
                       ) : hasDefault ? (
-                        <span className="text-xs text-emerald-400">✓ Mídia já vinculada no template. O disparo vai direto sem precisar anexar arquivo. Clique para substituir (opcional).</span>
+                        <span className="text-xs text-emerald-400">✓ Mídia já vinculada. Clique para substituir (opcional).</span>
                       ) : (
                         <span className="text-xs text-amber-400">Este template exige uma mídia ({pickedTpl.headerFormat}) para ser enviado.</span>
                       )}
