@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { Loader2, Send, Search, MessageCircle, Plus, RefreshCw, Paperclip, Wand2, Mic, Trash2, Image as ImageIcon, Video, File as FileIcon, X } from "lucide-react";
 import imageCompression from "browser-image-compression";
 
-import { metaSendText, metaSendTemplate, metaListTemplates, metaSendMedia, metaSendMediaById } from "@/lib/meta.functions";
+import { metaSendText, metaSendTemplate, metaListTemplates, metaSendMedia, metaSendMediaById, metaUploadMedia } from "@/lib/meta.functions";
 import { fetchIncomingMessages, deleteIncomingConversation } from "@/lib/incoming.functions";
 import { generateDraft } from "@/lib/ai.functions";
 import { supabase } from "@/lib/supabase";
@@ -60,16 +60,17 @@ export function ChatMeta({ account, allAccounts, onSwitchAccount }: { account: Z
   const sendTplFn = useServerFn(metaSendTemplate);
   const listTplFn = useServerFn(metaListTemplates);
   const fetchInFn = useServerFn(fetchIncomingMessages);
-  const sendMediaFn = useServerFn(metaSendMedia);
-  const sendMediaByIdFn = useServerFn(metaSendMediaById);
-  const aiDraftFn = useServerFn(generateDraft);
   const delConvFn = useServerFn(deleteIncomingConversation);
+  const aiDraftFn = useServerFn(generateDraft);
+  const uploadFn = useServerFn(metaUploadMedia);
+  const sendMediaByIdFn = useServerFn(metaSendMediaById);
 
   const [convs, setConvs] = useState<Conv[]>(() => loadConvs(phoneNumberId));
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [reply, setReply] = useState("");
   const [tplPick, setTplPick] = useState("");
+  const [tplFile, setTplFile] = useState<File | null>(null);
   const [newOpen, setNewOpen] = useState(false);
   const [newPhone, setNewPhone] = useState("");
   const [newName, setNewName] = useState("");
@@ -176,7 +177,8 @@ export function ChatMeta({ account, allAccounts, onSwitchAccount }: { account: Z
       .filter((t: any) => String(t.status || "").toUpperCase() === "APPROVED")
       .map((t: any) => {
         const body = t.components?.find((c: any) => c.type === "BODY")?.text || `[template] ${t.name}`;
-        return { name: t.name as string, language: t.language as string, body };
+        const headerComponent = t.components?.find((c: any) => c.type === "HEADER");
+        return { name: t.name as string, language: t.language as string, body, headerFormat: headerComponent?.format || "NONE" };
       });
   }, [tplQ.data]);
 
@@ -460,7 +462,59 @@ export function ChatMeta({ account, allAccounts, onSwitchAccount }: { account: Z
       if (!selected) throw new Error("Selecione uma conversa");
       const t = templates.find((x) => x.name === tplPick);
       if (!t) throw new Error("Escolha um template");
-      return sendTplFn({ data: { accessToken, phoneNumberId, to: selected.id, templateName: t.name, language: t.language } });
+      
+      let mediaId: string | undefined;
+      const requiresMedia = ['IMAGE', 'VIDEO', 'DOCUMENT'].includes(t.headerFormat);
+      
+      if (requiresMedia) {
+        if (!tplFile) throw new Error(`O template exige uma mídia (${t.headerFormat}). Anexe o arquivo.`);
+        
+        const isSmallEnough = tplFile.size < 4.2 * 1024 * 1024;
+        if (!isSmallEnough) {
+          const formData = new FormData();
+          formData.append("messaging_product", "whatsapp");
+          formData.append("file", tplFile, tplFile.name);
+          const uploadRes = await fetch(`https://graph.facebook.com/v21.0/${phoneNumberId}/media`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${accessToken}` },
+            body: formData,
+          });
+          const uploadBody = await uploadRes.json();
+          if (!uploadRes.ok) throw new Error(`Upload falhou: ${uploadBody.error?.message || "Erro desconhecido"}`);
+          mediaId = uploadBody.id;
+        } else {
+          const formData = new FormData();
+          formData.append("accessToken", accessToken);
+          formData.append("phoneNumberId", phoneNumberId);
+          formData.append("file", tplFile);
+          const uploadRes = await uploadFn({ data: formData as any });
+          mediaId = (uploadRes as any).mediaId;
+        }
+      }
+
+      let templateComponents: any[] | undefined = undefined;
+      if (mediaId) {
+        templateComponents = [{
+          type: "header",
+          parameters: [
+            {
+              type: t.headerFormat.toLowerCase(),
+              [t.headerFormat.toLowerCase()]: { id: mediaId }
+            }
+          ]
+        }];
+      }
+
+      return sendTplFn({ 
+        data: { 
+          accessToken, 
+          phoneNumberId, 
+          to: selected.id, 
+          templateName: t.name, 
+          language: t.language,
+          components: templateComponents
+        } 
+      });
     },
     onSuccess: (res: any) => {
       const now = new Date().toISOString();
@@ -472,6 +526,7 @@ export function ChatMeta({ account, allAccounts, onSwitchAccount }: { account: Z
         messages: [...c.messages, { id: metaId, direction: "outgoing", message: t.body, createdAt: now }],
       }));
       setTplPick("");
+      setTplFile(null);
       toast.success("Template enviado");
     },
     onError: (e: Error) => toast.error(e.message),
@@ -749,22 +804,44 @@ export function ChatMeta({ account, allAccounts, onSwitchAccount }: { account: Z
 
               <div className="border-t border-white/5 bg-[#0f1b1e] p-3">
                 {outOfWindow ? (
-                  <div className="flex gap-2">
-                    <div className="flex-1">
-                      <Select value={tplPick} onValueChange={setTplPick}>
-                        <SelectTrigger className="h-11 border-white/10 bg-[#0b1416]">
-                          <SelectValue placeholder={tplQ.isLoading ? "Carregando templates…" : templates.length ? "-- template --" : "Nenhum template aprovado"} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {templates.map((t) => (
-                            <SelectItem key={`${t.name}-${t.language}`} value={t.name}>{t.name} ({t.language})</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                  <div className="flex flex-col gap-3">
+                    <div className="flex gap-2">
+                      <div className="flex-1">
+                        <Select value={tplPick} onValueChange={(v) => { setTplPick(v); setTplFile(null); }}>
+                          <SelectTrigger className="h-11 border-white/10 bg-[#0b1416]">
+                            <SelectValue placeholder={tplQ.isLoading ? "Carregando templates…" : templates.length ? "-- template --" : "Nenhum template aprovado"} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {templates.map((t) => (
+                              <SelectItem key={`${t.name}-${t.language}`} value={t.name}>{t.name} ({t.language})</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <Button onClick={() => tplMut.mutate()} disabled={tplMut.isPending || !tplPick} className="h-11 bg-emerald-500 px-5 text-[#0b1416] hover:bg-emerald-400">
+                        {tplMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Enviar"}
+                      </Button>
                     </div>
-                    <Button onClick={() => tplMut.mutate()} disabled={tplMut.isPending || !tplPick} className="h-11 bg-emerald-500 px-5 text-[#0b1416] hover:bg-emerald-400">
-                      {tplMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Enviar"}
-                    </Button>
+                    {templates.find(t => t.name === tplPick)?.headerFormat && ['IMAGE', 'VIDEO', 'DOCUMENT'].includes(templates.find(t => t.name === tplPick)!.headerFormat) && (
+                      <div className="flex items-center gap-3 bg-white/5 rounded-lg p-2 border border-amber-500/20">
+                        <input type="file" id="tplChatFile" className="hidden" onChange={(e) => setTplFile(e.target.files?.[0] || null)} />
+                        <Button type="button" variant="outline" onClick={() => document.getElementById("tplChatFile")?.click()} className="h-8 border-white/10 bg-black/20 text-slate-300 hover:bg-white/10">
+                          <Paperclip className="mr-2 h-3.5 w-3.5" /> Anexar Mídia
+                        </Button>
+                        <div className="flex-1 min-w-0">
+                          {tplFile ? (
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs text-slate-300 truncate">{tplFile.name}</span>
+                              <button onClick={() => setTplFile(null)} className="text-slate-400 hover:text-white p-1">
+                                <X className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="text-[10px] text-amber-500">Este template exige uma mídia para ser enviado.</span>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="flex flex-col w-full">

@@ -173,6 +173,26 @@ function BroadcastsMetaUI({ account }: { account: any }) {
         }
       }
 
+      let templateComponents: any[] | undefined = undefined;
+
+      if (templateName) {
+        const headerComponent = (selectedTpl as any)?.components?.find((c: any) => c.type === "HEADER");
+        if (headerComponent && ['IMAGE', 'VIDEO', 'DOCUMENT'].includes(headerComponent.format)) {
+          if (!mediaId) {
+            throw new Error(`O template ${templateName} exige uma mídia (${headerComponent.format}). Anexe o arquivo abaixo.`);
+          }
+          templateComponents = [{
+            type: "header",
+            parameters: [
+              {
+                type: headerComponent.format.toLowerCase(),
+                [headerComponent.format.toLowerCase()]: { id: mediaId }
+              }
+            ]
+          }];
+        }
+      }
+
       return broadcastFn({
         data: {
           accessToken: account.accessToken!,
@@ -180,7 +200,7 @@ function BroadcastsMetaUI({ account }: { account: any }) {
           numbers: finalNumbers,
           templateName: templateName || undefined,
           language: templateLang,
-          components: (selectedTpl as any)?.components,
+          components: templateComponents,
           message: fallback || undefined,
           mediaId,
           mediaType: mediaType as any,
