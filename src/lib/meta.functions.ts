@@ -118,7 +118,24 @@ export const metaSendTemplate = createServerFn({ method: "POST" })
       method: "POST",
       body: JSON.stringify({ messaging_product: "whatsapp", to, type: "template", template }),
     });
-    await logOutgoing(data.phoneNumberId, to, data.templateBody || `[Template] ${data.templateName}`, res);
+    
+    // Check if components has a media header
+    let tplMediaId = "";
+    let tplMediaType = "";
+    const header = data.components?.find((c: any) => c.type === "header");
+    if (header && header.parameters?.[0]) {
+      const p = header.parameters[0];
+      if (p.type === "image" && p.image?.id) { tplMediaId = p.image.id; tplMediaType = "image"; }
+      else if (p.type === "video" && p.video?.id) { tplMediaId = p.video.id; tplMediaType = "video"; }
+      else if (p.type === "document" && p.document?.id) { tplMediaId = p.document.id; tplMediaType = "document"; }
+    }
+
+    let logText = data.templateBody || `[Template] ${data.templateName}`;
+    if (tplMediaId) {
+      logText = `[${tplMediaType}]|${tplMediaId}|${logText}`;
+    }
+
+    await logOutgoing(data.phoneNumberId, to, logText, res);
     return res;
   });
 
@@ -303,7 +320,13 @@ export const metaBroadcast = createServerFn({ method: "POST" })
               },
             }),
           });
-          await logOutgoing(data.phoneNumberId, to, data.templateBody || `[Template] ${data.templateName}`, res);
+          
+          let logText = data.templateBody || `[Template] ${data.templateName}`;
+          if (data.mediaId && data.mediaType) {
+            logText = `[${data.mediaType}]|${data.mediaId}|${logText}`;
+          }
+          
+          await logOutgoing(data.phoneNumberId, to, logText, res);
         } else if (data.mediaId && data.mediaType) {
           const res = await metaFetch(data.accessToken, `/${data.phoneNumberId}/messages`, {
             method: "POST",

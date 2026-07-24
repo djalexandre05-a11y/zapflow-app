@@ -988,9 +988,9 @@ function MediaMessage({ text, accessToken }: { text: string; accessToken: string
               <Paperclip className="h-4 w-4" /> {caption || "Baixar documento"}
             </a>
           )}
+          {caption && <div className="mt-2 whitespace-pre-wrap text-sm">{caption}</div>}
         </div>
       ) : null}
-      {caption && <div className="mt-1 text-sm">{caption}</div>}
     </div>
   );
 }
