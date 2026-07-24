@@ -366,12 +366,6 @@ export function TemplatesMeta({ account }: { account: ZapAccount }) {
                             </span>
                           </td>
                           <td className="px-3 py-3 text-right space-x-2">
-                            {requiresMedia && (
-                              <button onClick={() => { setUploadingTemplate(t.name); defaultMediaInputRef.current?.click(); }}
-                                className={`inline-flex items-center gap-1 rounded px-2 py-1 text-xs ${t.defaultMediaUrl ? "text-emerald-400 hover:bg-emerald-500/10" : "text-sky-400 hover:bg-sky-500/10"}`}>
-                                {t.defaultMediaUrl ? "Mídia Vinculada" : "Vincular Mídia"}
-                              </button>
-                            )}
                             <button onClick={() => { if (confirm(`Excluir "${t.name}"?`)) deleteMut.mutate(t.name); }}
                               className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs text-rose-400 hover:bg-rose-500/10">
                               <Trash2 className="h-3.5 w-3.5" /> Excluir
@@ -384,7 +378,6 @@ export function TemplatesMeta({ account }: { account: ZapAccount }) {
                 </table>
               </div>
             )}
-            <input type="file" ref={defaultMediaInputRef} onChange={handleDefaultMediaChange} className="hidden" accept="image/*,video/*,.pdf,.doc,.docx" />
           </Card>
         </div>
       </div>
