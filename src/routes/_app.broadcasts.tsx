@@ -193,24 +193,28 @@ function BroadcastsMetaUI({ account }: { account: any }) {
         templateBody = (selectedTpl as any)?.components?.find((c: any) => c.type === "BODY")?.text || `[Template] ${templateName}`;
         const headerComponent = (selectedTpl as any)?.components?.find((c: any) => c.type === "HEADER");
         if (headerComponent && ['IMAGE', 'VIDEO', 'DOCUMENT'].includes(headerComponent.format)) {
-          const defaultUrl = selectedTpl?.defaultMediaUrl;
-          const headerHandle = selectedTpl?.headerHandle;
-          
-          // Se já tem handle/mídia salva no template da Meta → usa direto
-          if (!mediaId && headerHandle) {
-            mediaId = headerHandle;
-          } else if (!mediaId && !defaultUrl && !headerHandle) {
-            throw new Error(`O template ${templateName} exige uma mídia (${headerComponent.format}). Anexe o arquivo abaixo ou vincule uma mídia padrão na aba de Templates.`);
+          const defaultUrl = selectedTpl?.defaultMediaUrl as string | null | undefined;
+          const headerHandle = selectedTpl?.headerHandle as string | null | undefined; // URL da mídia salva na Meta
+
+          // Determina a URL a usar como link (header_handle é URL, não ID)
+          let headerUrl: string | undefined = undefined;
+          if (!mediaId) {
+            if (headerHandle) {
+              headerUrl = headerHandle; // usa URL salva no template da Meta
+            } else if (defaultUrl) {
+              headerUrl = defaultUrl;   // usa URL vinculada manualmente
+            } else {
+              throw new Error(`O template ${templateName} exige uma mídia (${headerComponent.format}). Anexe o arquivo abaixo ou vincule uma mídia padrão na aba de Templates.`);
+            }
           }
-          
-          const effectiveMedia = mediaId || defaultUrl;
-          if (effectiveMedia) {
+
+          if (mediaId || headerUrl) {
             templateComponents = [{
               type: "header",
               parameters: [
                 {
                   type: headerComponent.format.toLowerCase(),
-                  [headerComponent.format.toLowerCase()]: mediaId ? { id: mediaId } : { link: defaultUrl }
+                  [headerComponent.format.toLowerCase()]: mediaId ? { id: mediaId } : { link: headerUrl }
                 }
               ]
             }];

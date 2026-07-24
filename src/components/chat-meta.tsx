@@ -473,72 +473,55 @@ export function ChatMeta({ account, allAccounts, onSwitchAccount }: { account: Z
       const t = templates.find((x) => x.name === tplPick);
       if (!t) throw new Error("Escolha um template");
       
-      let mediaId: string | undefined;
+      let mediaId: string | undefined;   // ID de arquivo recém-uploadado
+      let headerUrl: string | undefined;  // URL já existente (header_handle ou defaultMediaUrl)
       const requiresMedia = ['IMAGE', 'VIDEO', 'DOCUMENT'].includes(t.headerFormat);
-      const defaultUrl = (t as any).defaultMediaUrl;
-      const headerHandle = (t as any).headerHandle;
+      const defaultUrl = (t as any).defaultMediaUrl as string | null;
+      const headerHandle = (t as any).headerHandle as string | null; // URL salva na Meta
       
-      // Se já tem handle/mídia salva no template da Meta → usa direto, sem pedir upload
-      if (requiresMedia && headerHandle) {
-        mediaId = headerHandle;
-      } else if (requiresMedia && !defaultUrl && !headerHandle) {
-        // Sem nenhuma mídia salva: precisa do arquivo do usuário
-        if (!tplFile) throw new Error(`O template exige uma mídia (${t.headerFormat}). Anexe o arquivo ou vincule na aba de Templates.`);
-        
-        const isSmallEnough = tplFile.size < 4.2 * 1024 * 1024;
-        if (!isSmallEnough) {
-          const formData = new FormData();
-          formData.append("messaging_product", "whatsapp");
-          formData.append("file", tplFile, tplFile.name);
-          const uploadRes = await fetch(`https://graph.facebook.com/v21.0/${phoneNumberId}/media`, {
-            method: "POST",
-            headers: { Authorization: `Bearer ${accessToken}` },
-            body: formData,
-          });
-          const uploadBody = await uploadRes.json();
-          if (!uploadRes.ok) throw new Error(`Upload falhou: ${uploadBody.error?.message || "Erro desconhecido"}`);
-          mediaId = uploadBody.id;
+      if (requiresMedia) {
+        if (tplFile) {
+          // Usuário anexou arquivo → faz upload e usa como mediaId
+          const isSmallEnough = tplFile.size < 4.2 * 1024 * 1024;
+          if (!isSmallEnough) {
+            const formData = new FormData();
+            formData.append("messaging_product", "whatsapp");
+            formData.append("file", tplFile, tplFile.name);
+            const uploadRes = await fetch(`https://graph.facebook.com/v21.0/${phoneNumberId}/media`, {
+              method: "POST",
+              headers: { Authorization: `Bearer ${accessToken}` },
+              body: formData,
+            });
+            const uploadBody = await uploadRes.json();
+            if (!uploadRes.ok) throw new Error(`Upload falhou: ${uploadBody.error?.message || "Erro desconhecido"}`);
+            mediaId = uploadBody.id;
+          } else {
+            const formData = new FormData();
+            formData.append("accessToken", accessToken);
+            formData.append("phoneNumberId", phoneNumberId);
+            formData.append("file", tplFile);
+            const uploadRes = await uploadFn({ data: formData as any });
+            mediaId = (uploadRes as any).mediaId;
+          }
+        } else if (headerHandle) {
+          // Tem URL salva no template da Meta → usa como link direto
+          headerUrl = headerHandle;
+        } else if (defaultUrl) {
+          // Tem URL vinculada manualmente → usa como link
+          headerUrl = defaultUrl;
         } else {
-          const formData = new FormData();
-          formData.append("accessToken", accessToken);
-          formData.append("phoneNumberId", phoneNumberId);
-          formData.append("file", tplFile);
-          const uploadRes = await uploadFn({ data: formData as any });
-          mediaId = (uploadRes as any).mediaId;
-        }
-      } else if (requiresMedia && (defaultUrl || headerHandle) && tplFile) {
-        // Tem mídia padrão mas o usuário optou por substituir
-        const isSmallEnough = tplFile.size < 4.2 * 1024 * 1024;
-        if (!isSmallEnough) {
-          const formData = new FormData();
-          formData.append("messaging_product", "whatsapp");
-          formData.append("file", tplFile, tplFile.name);
-          const uploadRes = await fetch(`https://graph.facebook.com/v21.0/${phoneNumberId}/media`, {
-            method: "POST",
-            headers: { Authorization: `Bearer ${accessToken}` },
-            body: formData,
-          });
-          const uploadBody = await uploadRes.json();
-          if (!uploadRes.ok) throw new Error(`Upload falhou: ${uploadBody.error?.message || "Erro desconhecido"}`);
-          mediaId = uploadBody.id;
-        } else {
-          const formData = new FormData();
-          formData.append("accessToken", accessToken);
-          formData.append("phoneNumberId", phoneNumberId);
-          formData.append("file", tplFile);
-          const uploadRes = await uploadFn({ data: formData as any });
-          mediaId = (uploadRes as any).mediaId;
+          throw new Error(`O template exige uma mídia (${t.headerFormat}). Anexe o arquivo ou vincule na aba de Templates.`);
         }
       }
 
       let templateComponents: any[] | undefined = undefined;
-      if (mediaId || defaultUrl) {
+      if (mediaId || headerUrl) {
         templateComponents = [{
           type: "header",
           parameters: [
             {
               type: t.headerFormat.toLowerCase(),
-              [t.headerFormat.toLowerCase()]: mediaId ? { id: mediaId } : { link: defaultUrl }
+              [t.headerFormat.toLowerCase()]: mediaId ? { id: mediaId } : { link: headerUrl }
             }
           ]
         }];
