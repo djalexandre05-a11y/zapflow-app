@@ -2,7 +2,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
-import { RefreshCw, Trash2, FileText, Plus, X } from "lucide-react";
+import { RefreshCw, Trash2, FileText, Plus, X, Image as ImageIcon, File as FileIcon, Video as VideoIcon } from "lucide-react";
+import { useRef } from "react";
 import { PageHeader, Card, EmptyState } from "@/components/app-ui";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -46,6 +47,16 @@ export function TemplatesMeta({ account }: { account: ZapAccount }) {
   const [footerText, setFooterText] = useState("");
   const [buttonType, setButtonType] = useState<"NONE" | "QUICK_REPLY" | "URL">("NONE");
   const [buttons, setButtons] = useState<{ text: string; url?: string }[]>([]);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const url = URL.createObjectURL(file);
+      setPreviewUrl(url);
+    }
+  };
 
   const tplQ = useQuery({
     queryKey: ["meta-tpl-page", account.wabaId],
@@ -97,7 +108,7 @@ export function TemplatesMeta({ account }: { account: ZapAccount }) {
     },
     onSuccess: () => {
       toast.success("Template enviado para aprovação");
-      setName(""); setBody(""); setHeaderText(""); setFooterText(""); setButtons([]); setButtonType("NONE"); setHeaderFormat("NONE");
+      setName(""); setBody(""); setHeaderText(""); setFooterText(""); setButtons([]); setButtonType("NONE"); setHeaderFormat("NONE"); setPreviewUrl(null);
       tplQ.refetch();
     },
     onError: (e: Error) => toast.error(e.message),
@@ -120,10 +131,11 @@ export function TemplatesMeta({ account }: { account: ZapAccount }) {
         subtitle={`WhatsApp · ${account.name}`}
       />
       <div className="flex-1 overflow-y-auto p-6">
-        <div className="mx-auto max-w-6xl space-y-6">
-          <Card
-            title="Novo template"
-            action={
+        <div className="mx-auto max-w-7xl space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr_350px] gap-6 items-start">
+            <Card
+              title="Novo template"
+              action={
               <button
                 onClick={() => tplQ.refetch()}
                 disabled={tplQ.isFetching}
@@ -154,7 +166,7 @@ export function TemplatesMeta({ account }: { account: ZapAccount }) {
               <div className="grid gap-3 md:grid-cols-2">
                 <div>
                   <Label className="text-xs uppercase text-slate-400">Tipo de Cabeçalho</Label>
-                  <select value={headerFormat} onChange={(e) => setHeaderFormat(e.target.value as any)} className={inputCls}>
+                  <select value={headerFormat} onChange={(e) => { setHeaderFormat(e.target.value as any); setPreviewUrl(null); }} className={inputCls}>
                     <option value="NONE">Nenhum</option>
                     <option value="TEXT">Texto</option>
                     <option value="IMAGE">Imagem</option>
@@ -166,6 +178,15 @@ export function TemplatesMeta({ account }: { account: ZapAccount }) {
                   <div>
                     <Label className="text-xs uppercase text-slate-400">Texto do Cabeçalho</Label>
                     <Input value={headerText} onChange={(e) => setHeaderText(e.target.value)} maxLength={60} className={inputCls} placeholder="Máx 60 caracteres" />
+                  </div>
+                )}
+                {(headerFormat === "IMAGE" || headerFormat === "VIDEO" || headerFormat === "DOCUMENT") && (
+                  <div>
+                    <Label className="text-xs uppercase text-slate-400">Exemplo (Apenas Preview)</Label>
+                    <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept={headerFormat === "IMAGE" ? "image/*" : headerFormat === "VIDEO" ? "video/*" : ".pdf,.doc,.docx"} />
+                    <Button onClick={() => fileInputRef.current?.click()} className={`${inputCls} flex items-center justify-center gap-2 h-[38px] bg-transparent hover:bg-white/5`}>
+                       Anexar Mídia
+                    </Button>
                   </div>
                 )}
               </div>
@@ -220,6 +241,66 @@ export function TemplatesMeta({ account }: { account: ZapAccount }) {
               </Button>
             </div>
           </Card>
+
+          {/* Celularzinho de Preview */}
+          <div className="hidden lg:flex sticky top-6 flex-col h-[600px] w-full max-w-[350px] rounded-[2.5rem] border-[12px] border-[#0b1416] bg-slate-100 overflow-hidden shadow-2xl relative">
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-6 bg-[#0b1416] rounded-b-xl z-20"></div>
+            <div className="bg-[#075e54] px-4 pt-8 pb-3 text-white font-semibold flex items-center gap-3 shadow-md z-10">
+              <div className="h-8 w-8 rounded-full bg-slate-300"></div>
+              <div>
+                <div className="text-sm">Zapflow Preview</div>
+                <div className="text-[10px] text-white/70">template render</div>
+              </div>
+            </div>
+            <div className="flex-1 bg-[#e5ddd5] p-4 overflow-y-auto relative" style={{ backgroundImage: 'url("https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png")', backgroundSize: 'cover' }}>
+              <div className="bg-white rounded-xl p-2 max-w-[90%] shadow-sm ml-auto rounded-tr-none relative text-slate-800">
+                {/* Header */}
+                {headerFormat === "TEXT" && headerText && (
+                  <div className="font-bold text-sm mb-1">{headerText}</div>
+                )}
+                {headerFormat === "IMAGE" && (
+                  <div className="bg-slate-200 h-32 w-full rounded mb-2 flex items-center justify-center overflow-hidden">
+                    {previewUrl ? <img src={previewUrl} className="object-cover h-full w-full" /> : <ImageIcon className="h-8 w-8 text-slate-400" />}
+                  </div>
+                )}
+                {headerFormat === "VIDEO" && (
+                  <div className="bg-slate-200 h-32 w-full rounded mb-2 flex items-center justify-center overflow-hidden relative">
+                    {previewUrl ? <video src={previewUrl} className="object-cover h-full w-full" /> : <VideoIcon className="h-8 w-8 text-slate-400" />}
+                  </div>
+                )}
+                {headerFormat === "DOCUMENT" && (
+                  <div className="bg-slate-200 h-16 w-full rounded mb-2 flex items-center justify-center">
+                    <FileIcon className="h-6 w-6 text-slate-400 mr-2" />
+                    <span className="text-xs text-slate-500">Documento</span>
+                  </div>
+                )}
+                
+                {/* Body */}
+                <div className="text-[13px] whitespace-pre-wrap leading-relaxed break-words">
+                  {body ? body.replace(/\{\{(\d+)\}\}/g, "[var $1]") : "Escreva o corpo da mensagem..."}
+                </div>
+
+                {/* Footer */}
+                {footerText && (
+                  <div className="text-[11px] text-slate-400 mt-2">{footerText}</div>
+                )}
+
+                <div className="text-right text-[10px] text-slate-400 mt-1">12:00</div>
+              </div>
+              
+              {/* Buttons */}
+              {buttons.length > 0 && buttonType !== "NONE" && (
+                <div className="mt-1 flex flex-col gap-1 max-w-[90%] ml-auto">
+                  {buttons.map((b, i) => (
+                    <div key={i} className="bg-white text-[#00a884] text-[13px] py-2.5 px-4 rounded-xl shadow-sm text-center font-medium">
+                      {b.text || "Botão"}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+          </div>
 
           <Card title={`Templates da conta (${templates.length})`}>
             {tplQ.isLoading ? (
