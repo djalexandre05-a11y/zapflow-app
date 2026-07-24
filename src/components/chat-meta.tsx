@@ -864,26 +864,33 @@ export function ChatMeta({ account, allAccounts, onSwitchAccount }: { account: Z
                         {tplMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Enviar Chat"}
                       </Button>
                     </div>
-                    {templates.find(t => t.name === tplPick)?.headerFormat && ['IMAGE', 'VIDEO', 'DOCUMENT'].includes(templates.find(t => t.name === tplPick)!.headerFormat) && (
-                      <div className="flex items-center gap-3 bg-white/5 rounded-lg p-2 border border-amber-500/20">
-                        <input type="file" id="tplChatFile" className="hidden" accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx" onChange={(e) => setTplFile(e.target.files?.[0] || null)} />
-                        <Button type="button" variant="outline" onClick={() => document.getElementById("tplChatFile")?.click()} className="h-8 border-white/10 bg-black/20 text-slate-300 hover:bg-white/10">
-                          <Paperclip className="mr-2 h-3.5 w-3.5" /> Anexar Mídia
-                        </Button>
-                        <div className="flex-1 min-w-0">
-                          {tplFile ? (
-                            <div className="flex items-center justify-between">
-                              <span className="text-xs text-slate-300 truncate">{tplFile.name}</span>
-                              <button onClick={() => setTplFile(null)} className="text-slate-400 hover:text-white p-1">
-                                <X className="h-3.5 w-3.5" />
-                              </button>
-                            </div>
-                          ) : (
-                            <span className="text-[10px] text-amber-500">Este template exige uma mídia para ser enviado.</span>
-                          )}
+                    {(() => {
+                      const pickedTpl = templates.find(t => t.name === tplPick);
+                      if (!pickedTpl || !['IMAGE', 'VIDEO', 'DOCUMENT'].includes(pickedTpl.headerFormat)) return null;
+                      const hasDefault = !!(pickedTpl as any).defaultMediaUrl;
+                      return (
+                        <div className={`flex items-center gap-3 rounded-lg p-2 border ${hasDefault ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-white/5 border-amber-500/20'}`}>
+                          <input type="file" id="tplChatFile" className="hidden" accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx" onChange={(e) => setTplFile(e.target.files?.[0] || null)} />
+                          <Button type="button" variant="outline" onClick={() => document.getElementById("tplChatFile")?.click()} className="h-8 border-white/10 bg-black/20 text-slate-300 hover:bg-white/10">
+                            <Paperclip className="mr-2 h-3.5 w-3.5" /> {hasDefault ? 'Trocar Mídia' : 'Anexar Mídia'}
+                          </Button>
+                          <div className="flex-1 min-w-0">
+                            {tplFile ? (
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs text-slate-300 truncate">{tplFile.name}</span>
+                                <button onClick={() => setTplFile(null)} className="text-slate-400 hover:text-white p-1">
+                                  <X className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            ) : hasDefault ? (
+                              <span className="text-[10px] text-emerald-400">✓ Mídia já vinculada no template. Clique para substituir (opcional).</span>
+                            ) : (
+                              <span className="text-[10px] text-amber-500">Este template exige uma mídia para ser enviado.</span>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      );
+                    })()}
                   </div>
                 ) : (
                   <div className="flex flex-col w-full">
