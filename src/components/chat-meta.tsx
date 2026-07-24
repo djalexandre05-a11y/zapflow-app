@@ -1,11 +1,11 @@
 import { useServerFn } from "@tanstack/react-start";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Loader2, Send, Search, MessageCircle, Plus, RefreshCw, Paperclip, Wand2, Mic, Trash2, Image as ImageIcon, Video, File as FileIcon, X, Camera } from "lucide-react";
 import imageCompression from "browser-image-compression";
 
-import { metaSendText, metaSendTemplate, metaListTemplates, metaSendMedia, metaSendMediaById, metaUploadMedia, metaUpdateProfilePicture } from "@/lib/meta.functions";
+import { metaSendText, metaSendTemplate, metaListTemplates, metaSendMedia, metaSendMediaById, metaUploadMedia, metaUpdateProfilePicture, metaGetBusinessProfile } from "@/lib/meta.functions";
 import { fetchIncomingMessages, deleteIncomingConversation } from "@/lib/incoming.functions";
 import { generateDraft } from "@/lib/ai.functions";
 import { supabase } from "@/lib/supabase";
@@ -66,8 +66,16 @@ export function ChatMeta({ account, allAccounts, onSwitchAccount }: { account: Z
   const sendMediaFn = useServerFn(metaSendMedia);
   const sendMediaByIdFn = useServerFn(metaSendMediaById);
   const updateProfilePicFn = useServerFn(metaUpdateProfilePicture);
+  const getProfileFn = useServerFn(metaGetBusinessProfile);
+  const queryClient = useQueryClient();
 
   const profilePicRef = useRef<HTMLInputElement>(null);
+
+  const profileQ = useQuery({
+    queryKey: ["meta-business-profile", phoneNumberId],
+    queryFn: () => getProfileFn({ data: { accessToken, phoneNumberId } }),
+    staleTime: 60_000,
+  });
 
   const [convs, setConvs] = useState<Conv[]>(() => loadConvs(phoneNumberId));
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -95,7 +103,11 @@ export function ChatMeta({ account, allAccounts, onSwitchAccount }: { account: Z
       formData.append("file", file);
       return updateProfilePicFn({ data: formData as any });
     },
-    onSuccess: () => toast.success("Foto de perfil atualizada!"),
+    onSuccess: () => {
+      toast.success("Foto de perfil atualizada!");
+      // Recarrega a foto após alguns segundos (Meta pode demorar para propagar)
+      setTimeout(() => queryClient.invalidateQueries({ queryKey: ["meta-business-profile", phoneNumberId] }), 3000);
+    },
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -614,7 +626,7 @@ export function ChatMeta({ account, allAccounts, onSwitchAccount }: { account: Z
         subtitle={`WhatsApp · ${account.name}`}
         right={
           <div className="flex items-center gap-3">
-            {/* Botão trocar foto de perfil */}
+            {/* Foto de perfil + botão trocar */}
             <input
               type="file"
               ref={profilePicRef}
@@ -626,15 +638,30 @@ export function ChatMeta({ account, allAccounts, onSwitchAccount }: { account: Z
                 if (profilePicRef.current) profilePicRef.current.value = "";
               }}
             />
-            <Button
+            <button
               onClick={() => profilePicRef.current?.click()}
               disabled={profilePicMut.isPending}
               title="Trocar foto de perfil"
-              className="h-9 border border-white/10 bg-[#0f1a1c] px-3 text-slate-400 hover:bg-white/5 hover:text-white"
-              variant="ghost"
+              className="group relative h-9 w-9 overflow-hidden rounded-full border-2 border-white/10 bg-[#0f1a1c] hover:border-emerald-500/50 transition-all"
             >
-              {profilePicMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
-            </Button>
+              {profileQ.data?.profilePictureUrl ? (
+                <img
+                  src={profileQ.data.profilePictureUrl}
+                  alt="Foto de perfil"
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center text-slate-400">
+                  <Camera className="h-4 w-4" />
+                </div>
+              )}
+              {/* Overlay de câmera ao passar o mouse */}
+              <div className="absolute inset-0 flex items-center justify-center bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity">
+                {profilePicMut.isPending
+                  ? <Loader2 className="h-4 w-4 animate-spin text-white" />
+                  : <Camera className="h-4 w-4 text-white" />}
+              </div>
+            </button>
             {allAccounts && allAccounts.length > 1 && onSwitchAccount && (
               <Select value={account.id} onValueChange={onSwitchAccount}>
                 <SelectTrigger className="h-9 w-[200px] border-white/10 bg-[#0f1a1c] text-xs">

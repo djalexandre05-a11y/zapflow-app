@@ -441,6 +441,24 @@ export const metaBroadcast = createServerFn({ method: "POST" })
     return { results, sent: results.filter((r) => r.ok).length, failed: results.filter((r) => !r.ok).length };
   });
 
+export const metaGetBusinessProfile = createServerFn({ method: "GET" })
+  .validator((d: { accessToken: string; phoneNumberId: string }) => d)
+  .handler(async ({ data }) => {
+    const res = await fetch(
+      `https://graph.facebook.com/v21.0/${data.phoneNumberId}/whatsapp_business_profile?fields=profile_picture_url,about,description,vertical`,
+      { headers: { Authorization: `Bearer ${data.accessToken}` } }
+    );
+    const body = await res.json();
+    if (!res.ok) throw new Error(body?.error?.message || "Erro ao buscar perfil");
+    // A API retorna { data: [{ profile_picture_url, about, ... }] }
+    const profile = body?.data?.[0] || body;
+    return {
+      profilePictureUrl: profile.profile_picture_url || null,
+      about: profile.about || null,
+      description: profile.description || null,
+    };
+  });
+
 export const metaUpdateProfilePicture = createServerFn({ method: "POST" })
   .validator((d: FormData) => d)
   .handler(async ({ data }) => {
