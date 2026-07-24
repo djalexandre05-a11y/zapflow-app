@@ -447,22 +447,48 @@ export const metaUpdateProfilePicture = createServerFn({ method: "POST" })
     const accessToken = data.get("accessToken") as string;
     const phoneNumberId = data.get("phoneNumberId") as string;
     const file = data.get("file") as File;
+    const fileBuffer = Buffer.from(await file.arrayBuffer());
+    const fileSize = fileBuffer.length;
+    const fileType = file.type || "image/jpeg";
+    const fileName = file.name || "profile.jpg";
 
-    // 1. Faz upload da imagem para obter o handle
-    const uploadForm = new FormData();
-    uploadForm.append("messaging_product", "whatsapp");
-    uploadForm.append("file", file, file.name);
-
-    const uploadRes = await fetch(`https://graph.facebook.com/v21.0/${phoneNumberId}/media`, {
-      method: "POST",
+    // 1. Descobrir o App ID a partir do token (necessário para Resumable Upload API)
+    const appRes = await fetch(`https://graph.facebook.com/v21.0/me?fields=id`, {
       headers: { Authorization: `Bearer ${accessToken}` },
-      body: uploadForm,
+    });
+    const appBody = await appRes.json();
+    // Para tokens de sistema/WABA, retorna o app associado via campo 'id'
+    // Fallback: tenta extrair do token debug
+    let appId: string = appBody?.id;
+    if (!appId) throw new Error("Não foi possível obter o App ID do token.");
+
+    // 2. Criar sessão de upload (Resumable Upload API)
+    const sessionRes = await fetch(
+      `https://graph.facebook.com/v21.0/${appId}/uploads?file_name=${encodeURIComponent(fileName)}&file_length=${fileSize}&file_type=${encodeURIComponent(fileType)}`,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}` },
+      }
+    );
+    const sessionBody = await sessionRes.json();
+    if (!sessionRes.ok) throw new Error(`Sessão de upload falhou: ${sessionBody.error?.message || "Erro desconhecido"}`);
+    const uploadSessionId = sessionBody.id;
+
+    // 3. Fazer upload dos bytes do arquivo
+    const uploadRes = await fetch(`https://graph.facebook.com/v21.0/${uploadSessionId}`, {
+      method: "POST",
+      headers: {
+        Authorization: `OAuth ${accessToken}`,
+        "file_offset": "0",
+        "Content-Type": fileType,
+      },
+      body: fileBuffer,
     });
     const uploadBody = await uploadRes.json();
     if (!uploadRes.ok) throw new Error(`Upload falhou: ${uploadBody.error?.message || "Erro desconhecido"}`);
-    const handle = uploadBody.id;
+    const handle = uploadBody.h; // handle no formato "2:abc..."
 
-    // 2. Atualiza o perfil com o handle da imagem
+    // 4. Atualizar foto de perfil do número com o handle
     const profileRes = await fetch(`https://graph.facebook.com/v21.0/${phoneNumberId}/whatsapp_business_profile`, {
       method: "POST",
       headers: {
