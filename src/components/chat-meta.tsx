@@ -536,7 +536,7 @@ export function ChatMeta({ account, allAccounts, onSwitchAccount }: { account: Z
         }];
       }
 
-      return sendTplFn({ 
+      const sendRes = await sendTplFn({ 
         data: { 
           accessToken, 
           phoneNumberId, 
@@ -547,15 +547,25 @@ export function ChatMeta({ account, allAccounts, onSwitchAccount }: { account: Z
           components: templateComponents
         } 
       });
+
+      return { res: sendRes, mediaId, defaultUrl, headerFormat: t.headerFormat };
     },
-    onSuccess: (res: any) => {
+    onSuccess: (data: any) => {
+      console.log("tplMut onSuccess received data:", data);
+      const { res, mediaId, defaultUrl, headerFormat } = data;
       const now = new Date().toISOString();
       const t = templates.find((x) => x.name === tplPick)!;
       const metaId = res?.messages?.[0]?.id || `${Date.now()}`;
+      
+      const sentMedia = mediaId || defaultUrl;
+      const prefix = sentMedia && headerFormat && headerFormat !== "NONE" ? `[${headerFormat.toLowerCase()}]|${sentMedia}|` : "";
+      
+      console.log("Constructed prefix:", prefix, "for sentMedia:", sentMedia, "headerFormat:", headerFormat);
+      
       updateConv(selected!.id, (c) => ({
         ...c,
         updatedAt: now,
-        messages: [...c.messages, { id: metaId, direction: "outgoing", message: t.body, createdAt: now }],
+        messages: [...c.messages, { id: metaId, direction: "outgoing", message: `${prefix}${t.body}`, createdAt: now }],
       }));
       setTplPick("");
       setTplFile(null);
@@ -851,7 +861,7 @@ export function ChatMeta({ account, allAccounts, onSwitchAccount }: { account: Z
                         </Select>
                       </div>
                       <Button onClick={() => tplMut.mutate()} disabled={tplMut.isPending || !tplPick} className="h-11 bg-emerald-500 px-5 text-[#0b1416] hover:bg-emerald-400">
-                        {tplMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Enviar"}
+                        {tplMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Enviar Chat"}
                       </Button>
                     </div>
                     {templates.find(t => t.name === tplPick)?.headerFormat && ['IMAGE', 'VIDEO', 'DOCUMENT'].includes(templates.find(t => t.name === tplPick)!.headerFormat) && (
@@ -972,6 +982,12 @@ function MediaMessage({ text, accessToken }: { text: string; accessToken: string
       setLoading(false);
       return;
     }
+    if (mediaId.startsWith("http")) {
+      setBlobUrl(mediaId);
+      setLoading(false);
+      return;
+    }
+
     let alive = true;
     (async () => {
       try {
