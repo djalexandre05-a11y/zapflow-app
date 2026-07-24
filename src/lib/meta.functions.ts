@@ -440,3 +440,41 @@ export const metaBroadcast = createServerFn({ method: "POST" })
     }
     return { results, sent: results.filter((r) => r.ok).length, failed: results.filter((r) => !r.ok).length };
   });
+
+export const metaUpdateProfilePicture = createServerFn({ method: "POST" })
+  .validator((d: FormData) => d)
+  .handler(async ({ data }) => {
+    const accessToken = data.get("accessToken") as string;
+    const phoneNumberId = data.get("phoneNumberId") as string;
+    const file = data.get("file") as File;
+
+    // 1. Faz upload da imagem para obter o handle
+    const uploadForm = new FormData();
+    uploadForm.append("messaging_product", "whatsapp");
+    uploadForm.append("file", file, file.name);
+
+    const uploadRes = await fetch(`https://graph.facebook.com/v21.0/${phoneNumberId}/media`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${accessToken}` },
+      body: uploadForm,
+    });
+    const uploadBody = await uploadRes.json();
+    if (!uploadRes.ok) throw new Error(`Upload falhou: ${uploadBody.error?.message || "Erro desconhecido"}`);
+    const handle = uploadBody.id;
+
+    // 2. Atualiza o perfil com o handle da imagem
+    const profileRes = await fetch(`https://graph.facebook.com/v21.0/${phoneNumberId}/whatsapp_business_profile`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        profile_picture_handle: handle,
+      }),
+    });
+    const profileBody = await profileRes.json();
+    if (!profileRes.ok) throw new Error(`Erro ao atualizar perfil: ${profileBody.error?.message || "Erro desconhecido"}`);
+    return { success: true };
+  });
