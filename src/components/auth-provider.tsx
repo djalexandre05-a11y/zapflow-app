@@ -43,6 +43,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let interval: number;
 
     const checkSession = async (currentUser: User) => {
+      if (window.location.pathname === '/login') return;
+      
       const localToken = localStorage.getItem('zapflow.session');
       if (!localToken) return;
       
