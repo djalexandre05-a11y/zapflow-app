@@ -11,7 +11,7 @@ export const fetchIncomingMessages = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     let q = supabaseAdmin
       .from("wa_incoming")
-      .select("id, from_number, from_name, message_text, wa_message_id, received_at, status")
+      .select("id, from_number, from_name, message_text, wa_message_id, received_at")
       .eq("phone_number_id", data.phoneNumberId)
       .order("received_at", { ascending: true })
       .limit(500);

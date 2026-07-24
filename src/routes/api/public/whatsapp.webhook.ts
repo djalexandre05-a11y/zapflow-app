@@ -32,16 +32,9 @@ export const Route = createFileRoute("/api/public/whatsapp/webhook")({
               const value = change?.value;
               const phoneNumberId: string = value?.metadata?.phone_number_id;
               
-              // Process statuses (errors, sent, delivered, read)
+              // Process statuses (errors)
               if (value?.statuses?.length) {
-                const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
                 for (const st of value.statuses) {
-                  // Atualiza o status da mensagem original enviada
-                  await supabaseAdmin
-                    .from("wa_incoming")
-                    .update({ status: st.status })
-                    .eq("wa_message_id", `OUT_${st.id}`);
-
                   if (st.status === "failed" && st.errors?.length) {
                     const err = st.errors[0];
                     rows.push({
