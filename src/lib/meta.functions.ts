@@ -29,6 +29,7 @@ type SendTplInput = {
   language: string;
   bodyParams?: string[];
   templateBody?: string;
+  components?: any[];
 };
 type ListTplInput = { accessToken: string; wabaId: string };
 type CreateTplInput = {
@@ -105,7 +106,9 @@ export const metaSendTemplate = createServerFn({ method: "POST" })
       name: data.templateName,
       language: { code: data.language || "pt_BR" },
     };
-    if (data.bodyParams?.length) {
+    if (data.components?.length) {
+      template.components = data.components;
+    } else if (data.bodyParams?.length) {
       template.components = [{
         type: "body",
         parameters: data.bodyParams.map((t) => ({ type: "text", text: t })),

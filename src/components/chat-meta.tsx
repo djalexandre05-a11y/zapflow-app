@@ -63,6 +63,7 @@ export function ChatMeta({ account, allAccounts, onSwitchAccount }: { account: Z
   const delConvFn = useServerFn(deleteIncomingConversation);
   const aiDraftFn = useServerFn(generateDraft);
   const uploadFn = useServerFn(metaUploadMedia);
+  const sendMediaFn = useServerFn(metaSendMedia);
   const sendMediaByIdFn = useServerFn(metaSendMediaById);
 
   const [convs, setConvs] = useState<Conv[]>(() => loadConvs(phoneNumberId));
